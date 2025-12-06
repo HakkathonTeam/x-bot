@@ -1,18 +1,25 @@
 package com.xbot.bot;
 
 import com.xbot.config.AppConfig;
+import com.xbot.model.UploadedFile;
 import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
+import com.xbot.service.FileUploadService;
+import com.xbot.service.SessionService;
 import com.xbot.service.UserExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
+import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
 
 /**
  * Main Telegram bot class.
@@ -24,6 +31,10 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     private final UserExtractor userExtractor;
     private final ExcelGenerator excelGenerator;
     private TelegramClient telegramClient;
+    private final ExecutorService executorService = Executors.newCachedThreadPool();
+
+    private final SessionService sessionService;
+    private final FileUploadService fileUploadService;
 
     private static final Logger log = LoggerFactory.getLogger(XBot.class);
 
@@ -37,6 +48,16 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         this.excelGenerator = excelGenerator;
 
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
+
+        // Инициализируем сервисы
+        this.sessionService = new SessionService();
+        this.fileUploadService = new FileUploadService(telegramClient, sessionService);
+
+        // Добавляем shutdown hook для очистки временных файлов
+        Runtime.getRuntime().addShutdownHook(new Thread(() -> {
+            fileUploadService.cleanupAllFiles();
+            executorService.shutdown();
+        }));
     }
 
     @Override
@@ -52,6 +73,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         Message message = update.getMessage();
         Long chatId = message.getChatId();
         String text = message.getText();
+        Long userId = message.getFrom().getId();
 
         log.info("Message from {} ({}): {}",
                 message.getFrom().getFirstName(),
@@ -60,18 +82,15 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
         // Обработка команд
         if (text != null && text.startsWith("/")) {
-            handleCommand(chatId, text, message.getFrom().getFirstName());
-        } else if (message.hasText()) {
-            // Эхо-ответ для тестирования
-            sendEchoMessage(chatId, text);
+            handleCommand(chatId, userId, text, message.getFrom().getFirstName());
         } else if (message.hasDocument()) {
-            handleDocument(message);
+            handleDocumentMessage(chatId, userId, message.getDocument());
         } else {
             sendMessage(chatId, "Отправьте мне файлы экспорта чата (HTML/JSON) или используйте команды:\n/start - начать\n/help - помощь");
         }
     }
 
-    private void handleCommand(Long chatId, String command, String userName) {
+    private void handleCommand(Long chatId, Long userId, String command, String userName) {
         String cmd = command.split(" ")[0].toLowerCase();
 
         switch (cmd) {
@@ -84,17 +103,69 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             case "/test":
                 sendMessage(chatId, "✅ Бот работает! Тестовое сообщение получено.");
                 break;
-            case "/echo":
-                if (command.length() > 6) {
-                    sendMessage(chatId, command.substring(6));
-                } else {
-                    sendMessage(chatId, "Напишите /echo <текст>");
-                }
+            case "/files":
+                showUploadedFiles(chatId, userId);
+                break;
+            case "/clear":
+                clearFiles(chatId, userId);
                 break;
             default:
                 sendMessage(chatId, "Неизвестная команда. Используйте /help для списка команд.");
         }
     }
+
+    private void handleDocumentMessage(Long chatId, Long userId, Document document) {
+        // Проверяем количество уже загруженных файлов
+        int fileCount = sessionService.getFileCount(userId);
+        int maxFiles = config.getMaxFiles();
+        if (fileCount >= config.getMaxFiles()) {
+            sendMessage(chatId, String.format(
+                    "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
+                            "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.",
+                    maxFiles, maxFiles));
+            return;
+        }
+
+        // Отправляем сообщение о начале загрузки
+        String fileName = document.getFileName();
+        sendMessage(chatId, String.format(
+                "📥 Загружаю файл: %s\n" +
+                        "⏳ Пожалуйста, подождите...",
+                fileName));
+
+        // Обрабатываем файл асинхронно
+        executorService.submit(() -> {
+            try {
+                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, document);
+
+                // Отправляем сообщение об успешной загрузке
+                String response = String.format(
+                        "✅ Файл загружен: %s\n" +
+                                "📊 Формат: %s\n" +
+                                "💾 Размер: %d KB\n" +
+                                "📁 Всего файлов: %d/%d\n\n" +
+                                "Отправьте ещё файлы или используйте команды:\n" +
+                                "/files - показать все файлы\n" +
+                                "/clear - очистить\n" +
+                                "/help - справка",
+                        uploadedFile.getFileName(),
+                        uploadedFile.isHtmlFile() ? "HTML" : "JSON",
+                        uploadedFile.getFileSize() / 1024,
+                        sessionService.getFileCount(userId),
+                        maxFiles);
+
+                sendMessage(chatId, response);
+
+            } catch (IllegalArgumentException e) {
+                sendMessage(chatId, "❌ Ошибка: " + e.getMessage() +
+                        "\nПоддерживаются только HTML и JSON файлы.");
+            } catch (Exception e) {
+                log.error("Failed to download file for user {}", userId, e);
+                sendMessage(chatId, "❌ Не удалось загрузить файл. Попробуйте ещё раз.");
+            }
+        });
+    }
+
 
     private void sendWelcomeMessage(Long chatId, String userName) {
         String welcome = String.format("""
@@ -102,15 +173,22 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             
             Я - XBot для анализа экспорта чатов Telegram.
             
-            Отправьте мне файлы экспорта в формате HTML или JSON (до 10 файлов одновременно), и я создам отчет об участниках чата.
+            **Как использовать:**
+            1. Экспортируйте историю чата из Telegram
+            2. Отправьте мне полученные файлы (HTML/JSON)
+            3. Я проанализирую файлы и создам отчет
             
-            Используйте команды:
-            /help - показать справку
-            /test - проверить работу бота
-            /echo <текст> - эхо-ответ для тестирования
+            **Ограничения:**
+            • Максимум %d файлов за раз
+            • Форматы: HTML, JSON
+            
+            **Команды:**
+            /help - полная справка
+            /files - показать загруженные файлы
+            /clear - очистить файлы
             
             Готов к работе! 🚀
-            """, userName);
+            """, userName, config.getMaxFiles());
 
         sendMessage(chatId, welcome);
     }
@@ -121,6 +199,8 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             
             /start - Начальное приветствие
             /help - Эта справка
+            /files - Показать загруженные файлы
+            /clear - Очистить файлы
             /test - Проверить работу бота
             /echo <текст> - Тестовая эхо-функция
             
@@ -178,4 +258,43 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             log.error("Failed to send message to chat {}: {}", chatId, e.getMessage(), e);
         }
     }
+
+    private void showUploadedFiles(Long chatId, Long userId) {
+        int fileCount = sessionService.getFileCount(userId);
+
+        if (fileCount == 0) {
+            sendMessage(chatId, "📭 У вас нет загруженных файлов.\n" +
+                    "Отправьте мне файлы экспорта чата (HTML/JSON).");
+            return;
+        }
+
+        StringBuilder message = new StringBuilder();
+        message.append(String.format("📁 Загруженные файлы (%d):\n\n", fileCount));
+
+        var files = sessionService.getFiles(userId);
+        for (int i = 0; i < files.size(); i++) {
+            UploadedFile file = files.get(i);
+            message.append(String.format("%d. %s\n", i + 1, file.getFileName()));
+            message.append(String.format("   📊 %s | 💾 %d KB\n",
+                    file.isHtmlFile() ? "HTML" : "JSON",
+                    file.getFileSize() / 1024));
+        }
+
+        message.append("\n👆 Можно отправить ещё ").append(config.getMaxFiles() - fileCount).append(" файлов");
+
+        sendMessage(chatId, message.toString());
+    }
+
+    private void clearFiles(Long chatId, Long userId) {
+        int fileCount = sessionService.getFileCount(userId);
+        if (fileCount == 0) {
+            sendMessage(chatId, "📭 Нет файлов для очистки.");
+            return;
+        }
+
+        fileUploadService.cleanupUserFiles(userId);
+        sendMessage(chatId, String.format(
+                "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.", fileCount));
+    }
+
 }
