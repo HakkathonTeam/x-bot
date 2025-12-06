@@ -7,11 +7,11 @@
 
 ## Team Members
 - **Ivan** - Team Leader
-- **Lex** - Bot Core
+- **Vladimir** - Bot Core
 - **Alexey** - JSON Parser
 - **Vica** - HTML Parser, Mentions
 - **Nickolay** - Data/Excel
-- **Vladimir** - DevOps & QA
+- **Lex** - DevOps & QA
 
 ---
 
@@ -36,8 +36,8 @@
 |-----|------|
 | Ivan | Create GitHub repo, Maven project structure, base interfaces |
 | Nickolay | Create all data models (User, ChatMessage, ExtractionResult) |
-| Vladimir | Create Dockerfile, docker-compose.yml, .gitignore, .env.example |
-| Lex | Study TelegramBots library, set up bot token |
+| Lex | Create Dockerfile, docker-compose.yml, .gitignore, .env.example |
+| Vladimir | Study TelegramBots library, set up bot token |
 | Alexey | Study Telegram JSON export format, prepare samples |
 | Vica | Study Telegram HTML export format, prepare samples |
 
@@ -51,11 +51,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Define ChatHistoryParser interface, review Day 1 code |
-| Lex | Implement XBot class, /start command |
+| Vladimir | Implement XBot class, /start command |
 | Alexey | Start JsonChatParser implementation |
 | Vica | Start HtmlChatParser implementation |
 | Nickolay | Start ExcelGenerator - basic workbook creation |
-| Vladimir | Set up logback.xml, write first unit tests for models |
+| Lex | Set up logback.xml, write first unit tests for models |
 
 **End of Day Result:** Bot responds to /start, both parser skeletons ready
 
@@ -67,11 +67,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Code review, help with blockers |
-| Lex | Implement /help command, start file upload handler |
+| Vladimir | Implement /help command, start file upload handler |
 | Alexey | Complete JsonChatParser - extract authors |
 | Vica | Complete HtmlChatParser - extract authors |
 | Nickolay | ExcelGenerator - create sheets, headers, basic styling |
-| Vladimir | Unit tests for JsonChatParser |
+| Lex | Unit tests for JsonChatParser |
 
 **End of Day Result:** Bot handles /start, /help; both parsers extract users
 
@@ -83,11 +83,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Code review, integration planning |
-| Lex | Complete file upload handler (single file) |
+| Vladimir | Complete file upload handler (single file) |
 | Alexey | Handle nested text structures in JSON, edge cases |
 | Vica | Implement MentionExtractor (@username regex) |
 | Nickolay | ExcelGenerator - populate data rows, auto-size columns |
-| Vladimir | Unit tests for HtmlChatParser, MentionExtractor |
+| Lex | Unit tests for HtmlChatParser, MentionExtractor |
 
 **End of Day Result:** Bot accepts file uploads; mentions extracted; Excel generates
 
@@ -99,11 +99,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Code review, start integration work |
-| Lex | Implement multiple file handling (up to 10 files) |
+| Vladimir | Implement multiple file handling (up to 10 files) |
 | Alexey | Implement ParserFactory (auto-detect JSON/HTML) |
 | Vica | Integrate MentionExtractor with both parsers |
 | Nickolay | UserExtractor - deduplication, separate participants/mentions/channels |
-| Vladimir | Unit tests for ParserFactory, sample test files |
+| Lex | Unit tests for ParserFactory, sample test files |
 
 **End of Day Result:** Both parsers working; multi-file upload works; format auto-detection
 
@@ -115,11 +115,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Integration: connect parsers to bot |
-| Lex | Implement output logic (text list < 50, Excel >= 51) |
+| Vladimir | Implement output logic (text list < 50, Excel >= 51) |
 | Alexey | Filter deleted accounts in JSON |
 | Vica | Filter deleted accounts in HTML |
 | Nickolay | Finalize Excel with all columns, export date |
-| Vladimir | Integration tests with real export files |
+| Lex | Integration tests with real export files |
 
 **End of Day Result:** Bot can process files and return results
 
@@ -132,11 +132,11 @@
 |-----|------|
 | All | Full integration testing |
 | Ivan | Fix integration bugs, code review |
-| Lex | Fix bot issues found in testing |
+| Vladimir | Fix bot issues found in testing |
 | Alexey | Fix JSON parser issues found in testing |
 | Vica | Fix HTML parser issues found in testing |
 | Nickolay | Fix Excel issues found in testing |
-| Vladimir | Document all bugs found |
+| Lex | Document all bugs found |
 
 **End of Day Result:** MVP working end-to-end (may have bugs)
 
@@ -150,11 +150,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Prioritize bugs, assign fixes |
-| Lex | Handle edge cases: empty files, wrong format errors |
+| Vladimir | Handle edge cases: empty files, wrong format errors |
 | Alexey | Handle JSON encoding edge cases |
 | Vica | Handle HTML encoding edge cases |
 | Nickolay | Handle empty results, large datasets |
-| Vladimir | More integration tests, edge case tests |
+| Lex | More integration tests, edge case tests |
 
 **End of Day Result:** Major bugs fixed, edge cases handled
 
@@ -166,11 +166,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Code review, test on real chats |
-| Lex | User-friendly error messages, progress indicators |
+| Vladimir | User-friendly error messages, progress indicators |
 | Alexey | Improve JSON parser error handling |
 | Vica | Improve HTML parser error handling |
 | Nickolay | Excel formatting polish |
-| Vladimir | Test with various real Telegram exports |
+| Lex | Test with various real Telegram exports |
 
 **End of Day Result:** Good error handling, user-friendly messages
 
@@ -182,11 +182,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Security review - ensure no data leaks |
-| Lex | Verify files deleted after processing |
+| Vladimir | Verify files deleted after processing |
 | Alexey | Verify no temp files left (JSON) |
 | Vica | Verify no temp files left (HTML) |
 | Nickolay | Verify Excel created in memory only |
-| Vladimir | Test privacy: check no files remain on server |
+| Lex | Test privacy: check no files remain on server |
 
 **End of Day Result:** Privacy requirements verified
 
@@ -198,9 +198,9 @@
 | Who | Task |
 |-----|------|
 | Ivan | Full system test in Docker |
-| Vladimir | Test Docker build, fix any issues |
-| Vladimir | Test docker-compose up flow |
-| Lex | Fix any Docker-related bot issues |
+| Lex | Test Docker build, fix any issues |
+| Lex | Test docker-compose up flow |
+| Vladimir | Fix any Docker-related bot issues |
 | Alexey + Vica | Cross-test parsers, fix found issues |
 | Nickolay | Help with testing |
 
@@ -214,11 +214,11 @@
 | Who | Task |
 |-----|------|
 | Ivan | Write architecture description |
-| Lex | Write bot commands documentation |
+| Vladimir | Write bot commands documentation |
 | Alexey | Document JSON format support, limitations |
 | Vica | Document HTML format support, @mention rules |
 | Nickolay | Create example Excel export |
-| Vladimir | Write README.md (setup, run, usage instructions) |
+| Lex | Write README.md (setup, run, usage instructions) |
 
 **End of Day Result:** All documentation complete
 
@@ -230,10 +230,10 @@
 | Who | Task |
 |-----|------|
 | All | Full QA testing |
-| Vladimir | Final integration tests |
+| Lex | Final integration tests |
 | Ivan | Final code review |
 | All | Fix any last-minute bugs |
-| Vladimir | Prepare example exports, screenshots |
+| Lex | Prepare example exports, screenshots |
 
 **End of Day Result:** Everything tested and working
 
@@ -245,7 +245,7 @@
 | Who | Task |
 |-----|------|
 | Ivan | Final check, merge all to main |
-| Vladimir | Verify Docker works from clean clone |
+| Lex | Verify Docker works from clean clone |
 | All | Final demo run |
 | Ivan | Submit/present project |
 
@@ -295,25 +295,25 @@ Recommended: 15-min daily sync
 
 ```
 Models (Day 1)
-    → JSON Parser (Alexey) ─────┐
-    → HTML Parser (Vica)  ──────┼→ Integration (Days 6-7)
-    → Bot Core (Lex)      ──────┘        │
-    → Excel (Nickolay)    ───────────────┘
-                                         │
-                                         ▼
-                              Testing (Days 8-10)
-                                         │
-                                         ▼
-                              Docker (Day 11)
-                                         │
-                                         ▼
-                              Docs (Day 12)
-                                         │
-                                         ▼
-                              Final QA (Day 13)
-                                         │
-                                         ▼
-                              DELIVERY (Day 14)
+    → JSON Parser (Alexey)    ─────┐
+    → HTML Parser (Vica)      ─────┼→ Integration (Days 6-7)
+    → Bot Core (Vladimir)     ─────┘        │
+    → Excel (Nickolay)        ──────────────┘
+                                            │
+                                            ▼
+                                 Testing (Days 8-10)
+                                            │
+                                            ▼
+                                 Docker (Day 11)
+                                            │
+                                            ▼
+                                 Docs (Day 12)
+                                            │
+                                            ▼
+                                 Final QA (Day 13)
+                                            │
+                                            ▼
+                                 DELIVERY (Day 14)
 ```
 
 **Blocking dependencies:**
@@ -327,10 +327,10 @@ Models (Day 1)
 ## Parallel Work Streams
 
 ```
-Stream 1 (Lex):        Bot Core → File Handling → Output Logic → Error Handling
+Stream 1 (Vladimir):   Bot Core → File Handling → Output Logic → Error Handling
 Stream 2 (Alexey):     JSON Parser → ParserFactory → Edge Cases → Docs
 Stream 3 (Vica):       HTML Parser → Mentions → Edge Cases → Docs
 Stream 4 (Nickolay):   Models → Excel → UserExtractor → Polish
-Stream 5 (Vladimir):   Docker → Tests → More Tests → README
+Stream 5 (Lex):        Docker → Tests → More Tests → README
 Stream 6 (Ivan):       Interfaces → Code Review → Integration → Final Review
 ```

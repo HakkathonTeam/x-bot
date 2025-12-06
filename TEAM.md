@@ -5,10 +5,10 @@
 | Name | Role | Primary Focus |
 |------|------|---------------|
 | **Ivan** | Team Leader | Architecture, Integration, Code Review |
-| **Lex** | Backend Developer | Bot Core, Telegram API |
+| **Vladimir** | Backend Developer | Bot Core, Telegram API |
 | **Alexey** | Backend Developer | JSON Parser |
 | **Nickolay** | Backend Developer | Excel Generation, Data Models |
-| **Vladimir** | DevOps & QA | Docker, Testing, Documentation |
+| **Lex** | DevOps & QA | Docker, Testing, Documentation |
 | **Vica** | Backend Developer | HTML Parser, Mention Extraction |
 
 ---
@@ -36,7 +36,7 @@
 
 ---
 
-### Lex - Bot Core Developer
+### Vladimir - Bot Core Developer
 
 **Primary:** Telegram Bot implementation, command handlers, file handling
 
@@ -141,7 +141,7 @@
 
 ---
 
-### Vladimir - DevOps & QA
+### Lex - DevOps & QA
 
 **Primary:** Docker, testing, documentation, CI/CD
 
@@ -190,7 +190,7 @@
         ┌─────────────────────┼─────────────────────┐
         ▼                     ▼                     ▼
 ┌───────────────┐    ┌───────────────┐    ┌───────────────┐
-│      Lex      │    │    Alexey     │    │   Nickolay    │
+│   Vladimir    │    │    Alexey     │    │   Nickolay    │
 │   Bot Core    │    │  JSON Parser  │    │  Data/Excel   │
 │               │    │               │    │               │
 │ - Commands    │    │ - JSON parse  │    │ - Models      │
@@ -212,13 +212,13 @@
         │         │   from Nickolay     │         │
         │         └─────────────────────┘         │
         │                                         │
-        └──────────────► Lex uses ◄───────────────┘
+        └────────────► Vladimir uses ◄────────────┘
                       Excel bytes from
                         Nickolay
                               │
                               ▼
                ┌─────────────────────────────┐
-               │          Vladimir           │
+               │            Lex              │
                │       DevOps & QA           │
                │                             │
                │ - Docker                    │
@@ -236,29 +236,29 @@
 |-----|------|
 | Ivan | Project setup, interfaces |
 | Nickolay | Data models |
-| Vladimir | Docker setup, .gitignore |
+| Lex | Docker setup, .gitignore |
 
 ### Stage 2 - Core Development (Parallel)
 | Who | Task |
 |-----|------|
-| Lex | Bot core, commands |
+| Vladimir | Bot core, commands |
 | Alexey | JSON parser, ParserFactory |
 | Vica | HTML parser, MentionExtractor |
 | Nickolay | Excel generator, UserExtractor |
-| Vladimir | Write tests (as code becomes available) |
+| Lex | Write tests (as code becomes available) |
 
 ### Stage 3 - Integration
 | Who | Task |
 |-----|------|
 | Ivan | Integrate all modules |
-| Lex | Connect parsers + Excel to bot |
+| Vladimir | Connect parsers + Excel to bot |
 | Alexey + Vica | Cross-test parsers |
-| Vladimir | Integration testing |
+| Lex | Integration testing |
 
 ### Stage 4 - Finalization
 | Who | Task |
 |-----|------|
-| Vladimir | Final QA, README, examples |
+| Lex | Final QA, README, examples |
 | Ivan | Code review, final approval |
 | All | Bug fixes |
 
@@ -292,8 +292,8 @@ A task is complete when:
 | Name | Role | Focus Area |
 |------|------|------------|
 | Ivan | Team Leader | Questions about architecture, blockers |
-| Lex | Bot Core | Telegram Bot API, file handling |
+| Vladimir | Bot Core | Telegram Bot API, file handling |
 | Alexey | JSON Parser | JSON parsing, format detection |
 | Vica | HTML Parser | HTML parsing, @mentions |
 | Nickolay | Data/Excel | Models, Excel output |
-| Vladimir | DevOps/QA | Docker, tests, documentation |
+| Lex | DevOps/QA | Docker, tests, documentation |
