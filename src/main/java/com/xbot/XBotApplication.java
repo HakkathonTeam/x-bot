@@ -23,7 +23,7 @@ public class XBotApplication {
         try {
             // Load configuration
             AppConfig config = new AppConfig();
-            log.info("Configuration loaded. Bot username: {}", config.getBotUsername());
+            log.info("Configuration loaded. Bot username: {} \t Bot token: {}", config.getBotUsername(), config.getBotToken());
 
             // Create services (manual DI)
             MentionExtractor mentionExtractor = new MentionExtractor();
