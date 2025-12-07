@@ -1,7 +1,6 @@
 package com.xbot.parser;
 
 import com.xbot.model.ExtractionResult;
-import com.xbot.model.ChatMessage;
 import com.xbot.model.User;
 
 import java.util.HashSet;
@@ -36,7 +35,7 @@ public class JsonChatParserFileTest {
             parser.extractFromMessages(result.messages(), participants, mentions, channels);
 
             System.out.println("\nУчастники:");
-            participants.forEach(p -> System.out.println(p.username()));
+            participants.forEach(p -> System.out.println(p.name()));
 
             System.out.println("\nУпоминания:");
             mentions.forEach(System.out::println);

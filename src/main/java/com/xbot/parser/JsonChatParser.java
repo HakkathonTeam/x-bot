@@ -71,15 +71,18 @@ public class JsonChatParser implements ChatHistoryParser {
         for (ChatMessage msg : messages) {
             // Участники
             if (msg.from() != null) {
-                participants.add(new User(msg.from(), "", "", "", msg.fromId(), msg.from()));
+                participants.add(new User(msg.fromId() != null ? msg.fromId() : msg.from(), msg.from(), msg.from()));
             }
 
             // Упоминания
             extractMentions(msg.text(), mentions);
 
-            // Каналы (service messages)
-            if ("service".equals(msg.type()) && msg.actor() != null) {
-                channels.add(msg.actor());
+            // Каналы
+            if ("service".equals(msg.type()) && msg.action() != null) {
+                String action = msg.action();
+                if (action.contains("channel")) { // простая фильтрация по слову "channel"
+                    channels.add(msg.actor() != null ? msg.actor() : "unknown");
+                }
             }
         }
     }
@@ -87,7 +90,6 @@ public class JsonChatParser implements ChatHistoryParser {
     /**
      * Извлекаем упоминания из поля text
      */
-    @SuppressWarnings("unchecked")
     private void extractMentions(Object textField, Set<String> mentions) {
         if (textField == null) return;
 
