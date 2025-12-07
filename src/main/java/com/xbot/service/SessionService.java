@@ -20,14 +20,19 @@ public class SessionService {
     private final Map<Long, List<UploadedFile>> userFiles = new ConcurrentHashMap<>();
     private final Map<Long, LocalDateTime> lastActivity = new ConcurrentHashMap<>();
 
-    private static final int MAX_FILES_PER_USER = 10;
-    private static final long SESSION_TIMEOUT_MINUTES = 30;
+    private final int maxFilesPerUser;
+    private final long sessionTimeoutMinutes;
+
+    public SessionService(int maxFilesPerUser, long sessionTimeoutMinutes) {
+        this.maxFilesPerUser = maxFilesPerUser;
+        this.sessionTimeoutMinutes = sessionTimeoutMinutes;
+    }
 
     public void addFile(Long userId, UploadedFile file) {
         List<UploadedFile> files = userFiles.computeIfAbsent(userId, k -> new ArrayList<>());
 
-        if (files.size() >= MAX_FILES_PER_USER) {
-            throw new IllegalStateException("Maximum " + MAX_FILES_PER_USER + " files allowed");
+        if (files.size() >= maxFilesPerUser) {
+            throw new IllegalStateException("Maximum " + maxFilesPerUser + " files allowed");
         }
 
         files.add(file);
@@ -57,7 +62,7 @@ public class SessionService {
     }
 
     public void cleanupOldSessions() {
-        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(SESSION_TIMEOUT_MINUTES);
+        LocalDateTime cutoff = LocalDateTime.now().minusMinutes(sessionTimeoutMinutes);
         userFiles.entrySet().removeIf(entry ->
                 lastActivity.getOrDefault(entry.getKey(), LocalDateTime.MIN).isBefore(cutoff));
     }

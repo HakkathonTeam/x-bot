@@ -1,5 +1,7 @@
 package com.xbot.service;
 
+import com.xbot.exception.FileSizeLimitExceededException;
+import com.xbot.exception.InvalidFileFormatException;
 import com.xbot.model.UploadedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -11,6 +13,7 @@ import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
+import java.nio.file.DirectoryNotEmptyException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -25,10 +28,12 @@ public class FileUploadService {
     private final TelegramClient telegramClient;
     private final SessionService sessionService;
     private final String tempDirectory;
+    private final long maxFileSizeBytes;
 
-    public FileUploadService(TelegramClient telegramClient, SessionService sessionService) {
+    public FileUploadService(TelegramClient telegramClient, SessionService sessionService, long maxFileSizeBytes) {
         this.telegramClient = telegramClient;
         this.sessionService = sessionService;
+        this.maxFileSizeBytes = maxFileSizeBytes;
         this.tempDirectory = createTempDirectory();
     }
 
@@ -52,6 +57,11 @@ public class FileUploadService {
         String mimeType = document.getMimeType();
         long fileSize = document.getFileSize() != null ? document.getFileSize() : 0;
 
+        // Check file size
+        if (fileSize >= maxFileSizeBytes || fileSize == 0) {
+            throw new FileSizeLimitExceededException(fileSize, maxFileSizeBytes);
+        }
+
         log.info("Downloading file: {} ({} bytes) for user {}", fileName, fileSize, userId);
 
         // Create UploadedFile object
@@ -59,7 +69,7 @@ public class FileUploadService {
 
         // Check file format
         if (!uploadedFile.isSupportedFormat()) {
-            throw new IllegalArgumentException("Unsupported file format. Please upload HTML or JSON files.");
+            throw new InvalidFileFormatException("Unsupported file format. Please upload HTML or JSON files.");
         }
 
         // Download file from Telegram
@@ -134,6 +144,14 @@ public class FileUploadService {
                             }
                         });
                 log.info("Cleaned up temp directory: {}", tempDirectory);
+                try {
+                    Files.delete(dir);
+                    log.info("Deleted temp directory: {}", tempDirectory);
+                } catch (DirectoryNotEmptyException e) {
+                    log.warn("Directory not empty after cleanup, skipping: {}", dir);
+                } catch (IOException e) {
+                    log.warn("Failed to delete directory: {}", dir, e);
+                }
             }
         } catch (IOException e) {
             log.error("Failed to cleanup temp directory", e);

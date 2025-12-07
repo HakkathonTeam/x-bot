@@ -1,6 +1,8 @@
 package com.xbot.bot;
 
 import com.xbot.config.AppConfig;
+import com.xbot.exception.FileSizeLimitExceededException;
+import com.xbot.exception.InvalidFileFormatException;
 import com.xbot.model.UploadedFile;
 import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
@@ -20,6 +22,7 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Main Telegram bot class.
@@ -50,13 +53,27 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
 
         // Инициализируем сервисы
-        this.sessionService = new SessionService();
-        this.fileUploadService = new FileUploadService(telegramClient, sessionService);
+        this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes());
+        this.fileUploadService = new FileUploadService(telegramClient, sessionService, config.getMaxFileSizeBytes());
 
         // Добавляем shutdown hook для очистки временных файлов
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             fileUploadService.cleanupAllFiles();
             executorService.shutdown();
+            try {
+                if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
+                    // Задачи не завершились за 10 сек - отменяем
+                    executorService.shutdownNow();
+
+                    // Ждем еще немного после принудительной отмены
+                    if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
+                        log.error("Executor did not terminate");
+                    }
+                }
+            } catch (InterruptedException e) {
+                executorService.shutdownNow();
+                Thread.currentThread().interrupt(); // Восстанавливаем флаг
+            }
         }));
     }
 
@@ -93,45 +110,68 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     private void handleCommand(Long chatId, Long userId, String command, String userName) {
         String cmd = command.split(" ")[0].toLowerCase();
 
+        // Строковые константы команд
+        final String START_CMD = "/start";
+        final String HELP_CMD = "/help";
+        final String TEST_CMD = "/test";
+        final String FILES_CMD = "/files";
+        final String CLEAR_CMD = "/clear";
+        // Стандартные ответы
+        final String TEST_MSG_ANSWER = "✅ Бот работает! Тестовое сообщение получено.";
+        final String UNKNOWN_MSG_ANSWER = "Неизвестная команда. Используйте /help для списка команд.";
+
         switch (cmd) {
-            case "/start":
+            case START_CMD:
                 sendWelcomeMessage(chatId, userName);
                 break;
-            case "/help":
+            case HELP_CMD:
                 sendHelpMessage(chatId);
                 break;
-            case "/test":
-                sendMessage(chatId, "✅ Бот работает! Тестовое сообщение получено.");
+            case TEST_CMD:
+                sendMessage(chatId, TEST_MSG_ANSWER);
                 break;
-            case "/files":
+            case FILES_CMD:
                 showUploadedFiles(chatId, userId);
                 break;
-            case "/clear":
+            case CLEAR_CMD:
                 clearFiles(chatId, userId);
                 break;
             default:
-                sendMessage(chatId, "Неизвестная команда. Используйте /help для списка команд.");
+                sendMessage(chatId, UNKNOWN_MSG_ANSWER);
         }
     }
 
     private void handleDocumentMessage(Long chatId, Long userId, Document document) {
+        // Сообщения с ошибками
+        final String ERROR_MSG_MAX_FILES = "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
+                "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.";
+        final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
+        final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
+        final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
+        // Сообщения
+        final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
+        final String SUCCESSFUL_MSG = "✅ Файл загружен: %s\n" +
+                "📊 Формат: %s\n" +
+                "💾 Размер: %d KB\n" +
+                "📁 Всего файлов: %d/%d\n\n" +
+                "Отправьте ещё файлы или используйте команды:\n" +
+                "/files - показать все файлы\n" +
+                "/clear - очистить\n" +
+                "/help - справка";
+
         // Проверяем количество уже загруженных файлов
         int fileCount = sessionService.getFileCount(userId);
         int maxFiles = config.getMaxFiles();
+
+
         if (fileCount >= config.getMaxFiles()) {
-            sendMessage(chatId, String.format(
-                    "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
-                            "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.",
-                    maxFiles, maxFiles));
+            sendMessage(chatId, String.format(ERROR_MSG_MAX_FILES, maxFiles, maxFiles));
             return;
         }
 
         // Отправляем сообщение о начале загрузки
         String fileName = document.getFileName();
-        sendMessage(chatId, String.format(
-                "📥 Загружаю файл: %s\n" +
-                        "⏳ Пожалуйста, подождите...",
-                fileName));
+        sendMessage(chatId, String.format(PROGRESS_MSG_WAIT, fileName));
 
         // Обрабатываем файл асинхронно
         executorService.submit(() -> {
@@ -139,15 +179,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
                 UploadedFile uploadedFile = fileUploadService.downloadFile(userId, document);
 
                 // Отправляем сообщение об успешной загрузке
-                String response = String.format(
-                        "✅ Файл загружен: %s\n" +
-                                "📊 Формат: %s\n" +
-                                "💾 Размер: %d KB\n" +
-                                "📁 Всего файлов: %d/%d\n\n" +
-                                "Отправьте ещё файлы или используйте команды:\n" +
-                                "/files - показать все файлы\n" +
-                                "/clear - очистить\n" +
-                                "/help - справка",
+                String response = String.format(SUCCESSFUL_MSG,
                         uploadedFile.getFileName(),
                         uploadedFile.isHtmlFile() ? "HTML" : "JSON",
                         uploadedFile.getFileSize() / 1024,
@@ -156,19 +188,22 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
                 sendMessage(chatId, response);
 
-            } catch (IllegalArgumentException e) {
-                sendMessage(chatId, "❌ Ошибка: " + e.getMessage() +
-                        "\nПоддерживаются только HTML и JSON файлы.");
-            } catch (Exception e) {
+            } catch (InvalidFileFormatException e) {
+                sendMessage(chatId, ERROR_MSG_WRONG_FORMAT);
+            } catch (FileSizeLimitExceededException e) {
+                sendMessage(chatId, String.format(ERROR_MSG_MAX_FILE_SIZE,
+                        document.getFileName(), config.getMaxFileSizeMB()));
+            }catch (Exception e) {
                 log.error("Failed to download file for user {}", userId, e);
-                sendMessage(chatId, "❌ Не удалось загрузить файл. Попробуйте ещё раз.");
+                sendMessage(chatId, ERROR_MSG_UNKNOWN_DOWNLOAD);
             }
         });
     }
 
 
     private void sendWelcomeMessage(Long chatId, String userName) {
-        String welcome = String.format("""
+
+        final String WELCOME_MSG = """
             👋 Привет, %s!
             
             Я - XBot для анализа экспорта чатов Telegram.
@@ -177,7 +212,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             1. Экспортируйте историю чата из Telegram
             2. Отправьте мне полученные файлы (HTML/JSON)
             3. Я проанализирую файлы и создам отчет
-            
+           
             **Ограничения:**
             • Максимум %d файлов за раз
             • Форматы: HTML, JSON
@@ -188,13 +223,13 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             /clear - очистить файлы
             
             Готов к работе! 🚀
-            """, userName, config.getMaxFiles());
+            """;
 
-        sendMessage(chatId, welcome);
+        sendMessage(chatId, String.format(WELCOME_MSG, userName, config.getMaxFiles()));
     }
 
     private void sendHelpMessage(Long chatId) {
-        String help = """
+        final String HELP_MSG = """
             📚 Справка по командам:
             
             /start - Начальное приветствие
@@ -202,7 +237,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             /files - Показать загруженные файлы
             /clear - Очистить файлы
             /test - Проверить работу бота
-            /echo <текст> - Тестовая эхо-функция
             
             Как использовать:
             1. Экспортируйте историю чата из Telegram (Settings → Advanced → Export chat history)
@@ -218,31 +252,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
             • Форматы: HTML, JSON
             """;
 
-        sendMessage(chatId, help);
-    }
-
-    private void sendEchoMessage(Long chatId, String text) {
-        String response = String.format("""
-            📨 Эхо-ответ:
-            
-            Вы написали: %s
-            
-            Длина: %d символов
-            
-            Тест связи: ✅ Успешно
-            """, text, text.length());
-
-        sendMessage(chatId, response);
-    }
-
-    private void handleDocument(Message message) {
-        Long chatId = message.getChatId();
-        String fileName = message.getDocument().getFileName();
-
-        log.info("Received document: {} from {}", fileName, chatId);
-
-        // Временный ответ
-        sendMessage(chatId, String.format("📎 Получен файл: %s\n\n⏳ Обработка файлов будет реализована в следующих этапах.", fileName));
+        sendMessage(chatId, HELP_MSG);
     }
 
     private void sendMessage(Long chatId, String text) {
@@ -261,15 +271,16 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void showUploadedFiles(Long chatId, Long userId) {
         int fileCount = sessionService.getFileCount(userId);
+        final String NO_FILES_MSG = "📭 У вас нет загруженных файлов.\nОтправьте мне файлы экспорта чата (HTML/JSON).";
+        final String FILES_MSG = "📁 Загруженные файлы (%d):\n\n";
 
         if (fileCount == 0) {
-            sendMessage(chatId, "📭 У вас нет загруженных файлов.\n" +
-                    "Отправьте мне файлы экспорта чата (HTML/JSON).");
+            sendMessage(chatId, NO_FILES_MSG);
             return;
         }
 
         StringBuilder message = new StringBuilder();
-        message.append(String.format("📁 Загруженные файлы (%d):\n\n", fileCount));
+        message.append(String.format(FILES_MSG, fileCount));
 
         var files = sessionService.getFiles(userId);
         for (int i = 0; i < files.size(); i++) {
@@ -287,14 +298,17 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void clearFiles(Long chatId, Long userId) {
         int fileCount = sessionService.getFileCount(userId);
+        final String NO_FILES_MSG = "📭 Нет файлов для очистки.";
+        final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
+
         if (fileCount == 0) {
-            sendMessage(chatId, "📭 Нет файлов для очистки.");
+            sendMessage(chatId, NO_FILES_MSG);
             return;
         }
 
         fileUploadService.cleanupUserFiles(userId);
         sendMessage(chatId, String.format(
-                "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.", fileCount));
+                DELETED_FILES_MSG, fileCount));
     }
 
 }
