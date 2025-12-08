@@ -54,7 +54,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
 
         // Инициализируем сервисы
-        this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes());
+        this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes(), config.getProcessingTimeoutMs());
         this.fileUploadService = new FileUploadService(telegramClient, sessionService, config.getMaxFileSizeBytes());
 
         // Добавляем shutdown hook для очистки временных файлов
@@ -134,14 +134,17 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void handleDocumentMessage(Long chatId, Long userId, Document document) {
 
-
         // Проверяем количество уже загруженных файлов
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
         int maxFiles = config.getMaxFiles();
-
 
         if (fileCount >= config.getMaxFiles()) {
             sendMessage(chatId, String.format(Constants.ERROR_MSG_MAX_FILES, maxFiles, maxFiles));
+            return;
+        }
+
+        if (sessionService.isBusy(userId, chatId)) {
+            sendMessage(chatId, Constants.ERROR_WAIT_FOR_PREVIOUS_REQUEST);
             return;
         }
 
@@ -152,14 +155,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         // Обрабатываем файл асинхронно
         executorService.submit(() -> {
             try {
-                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, document);
+                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, chatId, document);
 
                 // Отправляем сообщение об успешной загрузке
                 String response = String.format(Constants.SUCCESSFUL_MSG,
                         uploadedFile.getFileName(),
                         uploadedFile.isHtmlFile() ? "HTML" : "JSON",
                         uploadedFile.getFileSize() / 1024,
-                        sessionService.getFileCount(userId),
+                        sessionService.getFileCount(userId, chatId),
                         maxFiles);
 
                 sendMessage(chatId, response);
@@ -201,7 +204,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private void showUploadedFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
 
         if (fileCount == 0) {
             sendMessage(chatId, Constants.NO_FILES_MSG);
@@ -211,7 +214,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         StringBuilder message = new StringBuilder();
         message.append(String.format(Constants.FILES_MSG, fileCount));
 
-        var files = sessionService.getFiles(userId);
+        var files = sessionService.getFiles(userId, chatId);
         for (int i = 0; i < files.size(); i++) {
             UploadedFile file = files.get(i);
             message.append(String.format("%d. %s\n", i + 1, file.getFileName()));
@@ -226,14 +229,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private void clearFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
 
         if (fileCount == 0) {
             sendMessage(chatId, Constants.NO_FILES_FOR_CLEAN_MSG);
             return;
         }
 
-        fileUploadService.cleanupUserFiles(userId);
+        fileUploadService.cleanupUserFiles(userId, chatId);
         sendMessage(chatId, String.format(
                 Constants.DELETED_FILES_MSG, fileCount));
     }

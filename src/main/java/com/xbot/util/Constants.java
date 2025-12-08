@@ -20,6 +20,7 @@ public final class Constants {
     public static final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
     public static final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
     public static final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
+    public static final String ERROR_WAIT_FOR_PREVIOUS_REQUEST = "❌ Дождитесь окончания предыдущей обработки.";
     // Сообщения
     public static final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
     public static final String SUCCESSFUL_MSG = "✅ Файл загружен: %s\n" +

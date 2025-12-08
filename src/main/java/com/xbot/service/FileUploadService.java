@@ -51,7 +51,7 @@ public class FileUploadService {
     /**
      * Download file from Telegram and save it locally
      */
-    public UploadedFile downloadFile(Long userId, Document document) throws IOException, TelegramApiException {
+    public UploadedFile downloadFile(Long userId, Long chatId, Document document) throws IOException, TelegramApiException {
         String fileId = document.getFileId();
         String fileName = document.getFileName();
         String mimeType = document.getMimeType();
@@ -92,7 +92,7 @@ public class FileUploadService {
         }
 
         uploadedFile.setLocalPath(localPath.toString());
-        sessionService.addFile(userId, uploadedFile);
+        sessionService.addFile(userId, chatId, uploadedFile);
 
         log.info("File saved to: {}", localPath);
         return uploadedFile;
@@ -101,19 +101,19 @@ public class FileUploadService {
     /**
      * Get file from session
      */
-    public UploadedFile getFile(Long userId, int index) {
+    /*public UploadedFile getFile(Long userId, int index) {
         List<UploadedFile> files = sessionService.getFiles(userId);
         if (index >= 0 && index < files.size()) {
             return files.get(index);
         }
         return null;
-    }
+    }*/
 
     /**
      * Clean up local files for a user
      */
-    public void cleanupUserFiles(Long userId) {
-        List<UploadedFile> files = sessionService.getFiles(userId);
+    public void cleanupUserFiles(Long userId, Long chatId) {
+        List<UploadedFile> files = sessionService.getFiles(userId, chatId);
         for (UploadedFile file : files) {
             if (file.getLocalPath() != null) {
                 try {
@@ -124,7 +124,7 @@ public class FileUploadService {
                 }
             }
         }
-        sessionService.clearFiles(userId);
+        sessionService.clearFiles(userId, chatId);
     }
 
     /**
