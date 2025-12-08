@@ -41,6 +41,79 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private static final Logger log = LoggerFactory.getLogger(XBot.class);
 
+    // Команды
+    final String START_CMD = "/start";
+    final String HELP_CMD = "/help";
+    final String TEST_CMD = "/test";
+    final String FILES_CMD = "/files";
+    final String CLEAR_CMD = "/clear";
+    // Стандартные ответы
+    final String TEST_MSG_ANSWER = "✅ Бот работает! Тестовое сообщение получено.";
+    final String UNKNOWN_MSG_ANSWER = "Неизвестная команда. Используйте /help для списка команд.";
+    // Сообщения с ошибками
+    final String ERROR_MSG_MAX_FILES = "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
+            "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.";
+    final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
+    final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
+    final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
+    // Сообщения
+    final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
+    final String SUCCESSFUL_MSG = "✅ Файл загружен: %s\n" +
+            "📊 Формат: %s\n" +
+            "💾 Размер: %d KB\n" +
+            "📁 Всего файлов: %d/%d\n\n" +
+            "Отправьте ещё файлы или используйте команды:\n" +
+            "/files - показать все файлы\n" +
+            "/clear - очистить\n" +
+            "/help - справка";
+    final String WELCOME_MSG = """
+            👋 Привет, %s!
+            
+            Я - XBot для анализа экспорта чатов Telegram.
+            
+            **Как использовать:**
+            1. Экспортируйте историю чата из Telegram
+            2. Отправьте мне полученные файлы (HTML/JSON)
+            3. Я проанализирую файлы и создам отчет
+           
+            **Ограничения:**
+            • Максимум %d файлов за раз
+            • Форматы: HTML, JSON
+            
+            **Команды:**
+            /help - полная справка
+            /files - показать загруженные файлы
+            /clear - очистить файлы
+            
+            Готов к работе! 🚀
+            """;
+    final String NO_FILES_MSG = "📭 У вас нет загруженных файлов.\nОтправьте мне файлы экспорта чата (HTML/JSON).";
+    final String FILES_MSG = "📁 Загруженные файлы (%d):\n\n";
+    final String HELP_MSG = """
+            📚 Справка по командам:
+            
+            /start - Начальное приветствие
+            /help - Эта справка
+            /files - Показать загруженные файлы
+            /clear - Очистить файлы
+            /test - Проверить работу бота
+            
+            Как использовать:
+            1. Экспортируйте историю чата из Telegram (Settings → Advanced → Export chat history)
+            2. Отправьте полученные файлы (HTML/JSON) этому боту
+            3. Получите отчет об участниках чата
+            
+            Формат вывода:
+            • Менее 50 участников - текстовый список
+            • 50+ участников - файл Excel
+            
+            Ограничения:
+            • Максимум 10 файлов за раз
+            • Форматы: HTML, JSON
+            """;
+    final String NO_FILES_FOR_CLEAN_MSG = "📭 Нет файлов для очистки.";
+    final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
+
     public XBot(AppConfig config,
                 ParserFactory parserFactory,
                 UserExtractor userExtractor,
@@ -110,16 +183,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     private void handleCommand(Long chatId, Long userId, String command, String userName) {
         String cmd = command.split(" ")[0].toLowerCase();
 
-        // Строковые константы команд
-        final String START_CMD = "/start";
-        final String HELP_CMD = "/help";
-        final String TEST_CMD = "/test";
-        final String FILES_CMD = "/files";
-        final String CLEAR_CMD = "/clear";
-        // Стандартные ответы
-        final String TEST_MSG_ANSWER = "✅ Бот работает! Тестовое сообщение получено.";
-        final String UNKNOWN_MSG_ANSWER = "Неизвестная команда. Используйте /help для списка команд.";
-
         switch (cmd) {
             case START_CMD:
                 sendWelcomeMessage(chatId, userName);
@@ -142,22 +205,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
     }
 
     private void handleDocumentMessage(Long chatId, Long userId, Document document) {
-        // Сообщения с ошибками
-        final String ERROR_MSG_MAX_FILES = "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
-                "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.";
-        final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
-        final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
-        final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
-        // Сообщения
-        final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
-        final String SUCCESSFUL_MSG = "✅ Файл загружен: %s\n" +
-                "📊 Формат: %s\n" +
-                "💾 Размер: %d KB\n" +
-                "📁 Всего файлов: %d/%d\n\n" +
-                "Отправьте ещё файлы или используйте команды:\n" +
-                "/files - показать все файлы\n" +
-                "/clear - очистить\n" +
-                "/help - справка";
+
 
         // Проверяем количество уже загруженных файлов
         int fileCount = sessionService.getFileCount(userId);
@@ -203,54 +251,10 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void sendWelcomeMessage(Long chatId, String userName) {
 
-        final String WELCOME_MSG = """
-            👋 Привет, %s!
-            
-            Я - XBot для анализа экспорта чатов Telegram.
-            
-            **Как использовать:**
-            1. Экспортируйте историю чата из Telegram
-            2. Отправьте мне полученные файлы (HTML/JSON)
-            3. Я проанализирую файлы и создам отчет
-           
-            **Ограничения:**
-            • Максимум %d файлов за раз
-            • Форматы: HTML, JSON
-            
-            **Команды:**
-            /help - полная справка
-            /files - показать загруженные файлы
-            /clear - очистить файлы
-            
-            Готов к работе! 🚀
-            """;
-
         sendMessage(chatId, String.format(WELCOME_MSG, userName, config.getMaxFiles()));
     }
 
     private void sendHelpMessage(Long chatId) {
-        final String HELP_MSG = """
-            📚 Справка по командам:
-            
-            /start - Начальное приветствие
-            /help - Эта справка
-            /files - Показать загруженные файлы
-            /clear - Очистить файлы
-            /test - Проверить работу бота
-            
-            Как использовать:
-            1. Экспортируйте историю чата из Telegram (Settings → Advanced → Export chat history)
-            2. Отправьте полученные файлы (HTML/JSON) этому боту
-            3. Получите отчет об участниках чата
-            
-            Формат вывода:
-            • Менее 50 участников - текстовый список
-            • 50+ участников - файл Excel
-            
-            Ограничения:
-            • Максимум 10 файлов за раз
-            • Форматы: HTML, JSON
-            """;
 
         sendMessage(chatId, HELP_MSG);
     }
@@ -260,7 +264,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
                 .chatId(chatId.toString())
                 .text(text)
                 .build();
-
         try {
             telegramClient.execute(sendMessage);
             log.debug("Message sent to chat {}", chatId);
@@ -271,8 +274,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void showUploadedFiles(Long chatId, Long userId) {
         int fileCount = sessionService.getFileCount(userId);
-        final String NO_FILES_MSG = "📭 У вас нет загруженных файлов.\nОтправьте мне файлы экспорта чата (HTML/JSON).";
-        final String FILES_MSG = "📁 Загруженные файлы (%d):\n\n";
 
         if (fileCount == 0) {
             sendMessage(chatId, NO_FILES_MSG);
@@ -298,11 +299,9 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void clearFiles(Long chatId, Long userId) {
         int fileCount = sessionService.getFileCount(userId);
-        final String NO_FILES_MSG = "📭 Нет файлов для очистки.";
-        final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
 
         if (fileCount == 0) {
-            sendMessage(chatId, NO_FILES_MSG);
+            sendMessage(chatId, NO_FILES_FOR_CLEAN_MSG);
             return;
         }
 
