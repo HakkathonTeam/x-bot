@@ -77,4 +77,5 @@ public final class Constants {
             """;
     public static final String NO_FILES_FOR_CLEAN_MSG = "📭 Нет файлов для очистки.";
     public static final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
+    public static final String REQUEST_MSG = "Отправьте мне файлы экспорта чата (HTML/JSON) или используйте команды:\n/start - начать\n/help - помощь";
 }

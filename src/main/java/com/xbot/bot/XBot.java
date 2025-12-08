@@ -104,7 +104,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         } else if (message.hasDocument()) {
             handleDocumentMessage(chatId, userId, message.getDocument());
         } else {
-            sendMessage(chatId, "Отправьте мне файлы экспорта чата (HTML/JSON) или используйте команды:\n/start - начать\n/help - помощь");
+            sendMessage(chatId, Constants.REQUEST_MSG);
         }
     }
 
