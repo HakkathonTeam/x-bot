@@ -220,7 +220,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
                     file.getFileSize() / 1024));
         }
 
-        message.append("\n👆 Можно отправить ещё ").append(config.getMaxFiles() - fileCount).append(" файлов");
+        message.append(String.format(Constants.LAST_FILES_MSG, config.getMaxFiles() - fileCount));
 
         sendMessage(chatId, message.toString());
     }
