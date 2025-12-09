@@ -1,0 +1,11 @@
+version: "3.9"
+
+services:
+  xbot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xbot:${IMAGE_TAG}
+    env_file:
+      - .env.example
+    restart: unless-stopped
