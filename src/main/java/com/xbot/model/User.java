@@ -5,4 +5,4 @@ package com.xbot.model;
  * Uses id for equality/deduplication.
  * TODO: Implement by Nickolay
  */
-public record User() {}
+public record User(String displayName) {}
