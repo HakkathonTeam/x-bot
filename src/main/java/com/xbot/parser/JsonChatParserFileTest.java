@@ -1,11 +1,11 @@
 package com.xbot.parser;
 
-import com.xbot.model.ExtractionResult;
-import com.xbot.model.User;
+import com.xbot.service.ChatProcessingService;
 
-import java.util.HashSet;
-import java.util.Scanner;
-import java.util.Set;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Тестовый класс для проверки JsonChatParser
@@ -13,38 +13,39 @@ import java.util.Set;
  */
 public class JsonChatParserFileTest {
 
-    public static void main(String[] args) {
-        System.out.println("Вставьте JSON. В конце напишите END и нажмите Enter");
+    // Пути к JSON-файлам чатов
+    private static final Path[] CHAT_FILES_ARRAY = {
+            Path.of("src/main/resources/chat1.json"),
+            Path.of("src/main/resources/chat2.json")
+    };
 
-        try (Scanner scanner = new Scanner(System.in)) {
-            StringBuilder sb = new StringBuilder();
-            String line;
-            while (!(line = scanner.nextLine()).equals("END")) {
-                sb.append(line).append("\n");
+    private static final String CHAT_NAME = "test_chat";
+
+    public static void main(String[] args) {
+
+        try {
+            List<Path> chatFiles = new ArrayList<>();
+
+            for (Path path : CHAT_FILES_ARRAY) {
+                if (Files.exists(path)) {
+                    chatFiles.add(path);
+                } else {
+                    System.err.println("Ошибка (файл не найден): " + path);
+                }
             }
 
-            String content = sb.toString();
+            if (chatFiles.isEmpty()) {
+                System.err.println("Нет файлов для обработки");
+                return;
+            }
 
-            JsonChatParser parser = new JsonChatParser();
-            ExtractionResult result = parser.parse(content);
+            ChatProcessingService service = new ChatProcessingService();
+            String excelPath = service.process(chatFiles, CHAT_NAME);
 
-            Set<User> participants = new HashSet<>();
-            Set<String> mentions = new HashSet<>();
-            Set<String> channels = new HashSet<>();
-
-            parser.extractFromMessages(result.messages(), participants, mentions, channels);
-
-            System.out.println("\nУчастники:");
-            participants.forEach(p -> System.out.println(p.name()));
-
-            System.out.println("\nУпоминания:");
-            mentions.forEach(System.out::println);
-
-            System.out.println("\nКаналы:");
-            channels.forEach(System.out::println);
+            System.out.println("Excel файл успешно создан: " + excelPath);
 
         } catch (Exception e) {
-            System.err.println("Ошибка парсинга JSON:");
+            System.err.println("Ошибка при обработке чата:");
             e.printStackTrace(System.err);
         }
     }
