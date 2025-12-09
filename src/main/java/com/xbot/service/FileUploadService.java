@@ -127,6 +127,7 @@ public class FileUploadService {
         sessionService.clearFiles(userId, chatId);
     }
 
+
     /**
      * Clean up all temp files
      */

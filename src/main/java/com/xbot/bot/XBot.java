@@ -21,6 +21,7 @@ import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +30,7 @@ import java.util.concurrent.TimeUnit;
  * Main Telegram bot class.
  * TODO: Implement by Vladimir
  */
-public class XBot implements LongPollingSingleThreadUpdateConsumer {
+public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionService.ProcessingCallback {
     private final AppConfig config;
     private final ParserFactory parserFactory;
     private final UserExtractor userExtractor;
@@ -57,6 +58,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes(), config.getProcessingTimeoutMs());
         this.fileUploadService = new FileUploadService(telegramClient, sessionService, config.getMaxFileSizeBytes());
 
+        this.sessionService.setProcessingCallback(this);
         // Добавляем shutdown hook для очистки временных файлов
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             fileUploadService.cleanupAllFiles();
@@ -241,4 +243,19 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
+
+    @Override
+    public void onProcessingBegin(Long chatId) {
+        sendMessage(chatId, Constants.PROCESS_BEGIN);
+    }
+
+    @Override
+    public void onProcessingComplete(Long chatId) {
+        sendMessage(chatId, Constants.PROCESS_COMPLETE);
+    }
+
+    @Override
+    public void onProcessingError(Long chatId) {
+        sendMessage(chatId, Constants.ERROR_PROCESS);
+    }
 }

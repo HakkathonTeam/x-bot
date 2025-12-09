@@ -5,6 +5,9 @@ import com.xbot.model.UploadedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -39,9 +42,9 @@ public class SessionService {
     }
 
     public interface ProcessingCallback {
-        void onProcessingTimeout(Long userId, List<UploadedFile> files);
-        void onProcessingComplete(Long userId);
-        void onProcessingError(Long userId, String error);
+        void onProcessingBegin(Long chatId);
+        void onProcessingComplete(Long chatId);
+        void onProcessingError(Long chatId);
     }
 
     // Map: userId -> list of uploaded files
@@ -162,8 +165,31 @@ public class SessionService {
         }
 
         log.info("Triggering processing for user {} with {} files", session.userId, session.files.size());
+        session.state = UserSessionState.PROCESSING;
         if (processingCallback != null) {
-            processingCallback.onProcessingTimeout(session.userId, new ArrayList<>(session.files));
+            processingCallback.onProcessingBegin(session.chatId);
+        }
+        try {
+            Iterator<UploadedFile> iterator = session.files.iterator();
+            while (iterator.hasNext()) {
+                UploadedFile file = iterator.next();
+                log.debug("Process file bgn: {}", file.getFileName());
+                Thread.sleep(5000);
+                Files.deleteIfExists(Paths.get(file.getLocalPath()));
+                log.debug("Process file end: {}", file.getFileName());
+                iterator.remove();
+            }
+
+        }  catch (IOException | InterruptedException e) {
+            if (processingCallback != null) {
+                processingCallback.onProcessingError(session.chatId);
+            }
+            throw new RuntimeException(e);
+        } finally {
+            session.state = UserSessionState.IDLE;
+        }
+        if (processingCallback != null) {
+            processingCallback.onProcessingComplete(session.chatId);
         }
     }
 }
