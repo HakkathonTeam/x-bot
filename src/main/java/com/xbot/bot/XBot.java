@@ -1,26 +1,29 @@
 package com.xbot.bot;
 
+import com.xbot.service.*;
 import com.xbot.util.Constants;
 import com.xbot.config.AppConfig;
 import com.xbot.exception.FileSizeLimitExceededException;
 import com.xbot.exception.InvalidFileFormatException;
 import com.xbot.model.UploadedFile;
 import com.xbot.parser.ParserFactory;
-import com.xbot.service.ExcelGenerator;
-import com.xbot.service.FileUploadService;
-import com.xbot.service.SessionService;
-import com.xbot.service.UserExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 
+import java.io.File;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -37,6 +40,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
     private final ExcelGenerator excelGenerator;
     private TelegramClient telegramClient;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
+    private final ChatProcessingService processingService;
 
     private final SessionService sessionService;
     private final FileUploadService fileUploadService;
@@ -59,6 +63,8 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         this.fileUploadService = new FileUploadService(telegramClient, sessionService, config.getMaxFileSizeBytes());
 
         this.sessionService.setProcessingCallback(this);
+
+        this.processingService = new ChatProcessingService();
         // Добавляем shutdown hook для очистки временных файлов
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             fileUploadService.cleanupAllFiles();
@@ -243,10 +249,40 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
+    public void sendFileToUser(Long chatId, File fileToSend) throws TelegramApiException {
+        InputFile inputFile = new InputFile(fileToSend, fileToSend.getName());
+
+        SendDocument sendDocument = new SendDocument(chatId.toString(), inputFile);
+        sendDocument.setCaption("Файл с результатом");
+        telegramClient.execute(sendDocument);
+    }
+
+    private void deleteResultSafety(String filePath) {
+        try {
+            Path path = Paths.get(filePath);
+            if (Files.deleteIfExists(path)) {
+                log.debug("File {} deleted OK!", filePath);
+            } else {
+                log.warn("File {} not exists!", filePath);
+            }
+        } catch (Exception e) {
+            log.warn("Can't delete file with filename: {}", filePath);
+        }
+    }
+
 
     @Override
-    public void onProcessingBegin(Long chatId) {
-        sendMessage(chatId, Constants.PROCESS_BEGIN);
+    public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
+        String result = null;
+        try {
+            sendMessage(chatId, Constants.PROCESS_BEGIN);
+            result = processingService.process(files, "test");
+            log.debug("Result: {}", result);
+            sendFileToUser(chatId, new File(result));
+        } finally {
+            deleteResultSafety(result);
+            fileUploadService.cleanupUserFiles(userId, chatId);
+        }
     }
 
     @Override

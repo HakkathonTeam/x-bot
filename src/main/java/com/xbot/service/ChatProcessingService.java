@@ -6,6 +6,8 @@ import com.xbot.model.User;
 import com.xbot.parser.ChatHistoryParser;
 import com.xbot.parser.JsonChatParser;
 import com.xbot.parser.ParserFactory;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -20,6 +22,7 @@ import java.util.Set;
  */
 public class ChatProcessingService {
 
+    private static final Logger log = LoggerFactory.getLogger(ChatProcessingService.class);
     private final ExcelGenerator excelGenerator = new ExcelGenerator();
 
     /**
@@ -35,7 +38,6 @@ public class ChatProcessingService {
 
         for (Path file : chatFiles) {
             String content = Files.readString(file);
-
             ChatHistoryParser parser = ParserFactory.getParser(content);
             ExtractionResult chat = parser.parse(content);
 

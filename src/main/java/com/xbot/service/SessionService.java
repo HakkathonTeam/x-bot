@@ -7,10 +7,12 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
+import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.stream.Collectors;
 
 /**
  * Manages user sessions and uploaded files
@@ -39,10 +41,18 @@ public class SessionService {
             this.chatId = chatId;
             this.lastActivity = LocalDateTime.now();
         }
+
+        List<Path> getPathList() {
+            return files.stream()
+                    .map(UploadedFile::getLocalPath)
+                    .filter(path -> path != null && !path.isEmpty())
+                    .map(Paths::get)
+                    .collect(Collectors.toList());
+        }
     }
 
     public interface ProcessingCallback {
-        void onProcessingBegin(Long chatId);
+        void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception;
         void onProcessingComplete(Long chatId);
         void onProcessingError(Long chatId);
     }
@@ -166,30 +176,18 @@ public class SessionService {
 
         log.info("Triggering processing for user {} with {} files", session.userId, session.files.size());
         session.state = UserSessionState.PROCESSING;
-        if (processingCallback != null) {
-            processingCallback.onProcessingBegin(session.chatId);
-        }
         try {
-            Iterator<UploadedFile> iterator = session.files.iterator();
-            while (iterator.hasNext()) {
-                UploadedFile file = iterator.next();
-                log.debug("Process file bgn: {}", file.getFileName());
-                Thread.sleep(5000);
-                Files.deleteIfExists(Paths.get(file.getLocalPath()));
-                log.debug("Process file end: {}", file.getFileName());
-                iterator.remove();
+            if (processingCallback != null) {
+                processingCallback.onProcessingBegin(session.userId, session.chatId, session.getPathList());
+                processingCallback.onProcessingComplete(session.chatId);
             }
-
-        }  catch (IOException | InterruptedException e) {
+        } catch (Exception e) {
             if (processingCallback != null) {
                 processingCallback.onProcessingError(session.chatId);
             }
-            throw new RuntimeException(e);
-        } finally {
-            session.state = UserSessionState.IDLE;
+            log.error("Error during processing: {}", e.getMessage());
         }
-        if (processingCallback != null) {
-            processingCallback.onProcessingComplete(session.chatId);
-        }
+
+        session.state = UserSessionState.IDLE;
     }
 }

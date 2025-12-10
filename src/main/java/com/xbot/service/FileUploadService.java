@@ -5,6 +5,7 @@ import com.xbot.exception.InvalidFileFormatException;
 import com.xbot.model.UploadedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -72,8 +73,17 @@ public class FileUploadService {
             throw new InvalidFileFormatException("Unsupported file format. Please upload HTML or JSON files.");
         }
 
+        org.telegram.telegrambots.meta.api.objects.File telegramFile;
+
+        GetFile getFileRequest = new GetFile(fileId);
+        telegramFile = telegramClient.execute(getFileRequest);
+        if (telegramFile == null || telegramFile.getFilePath() == null) {
+            throw new IOException("Can't get telegramfile for file_id: " + fileId);
+        }
+
+
         // Download file from Telegram
-        java.io.File file = telegramClient.downloadFile(fileId);
+        java.io.File file = telegramClient.downloadFile(telegramFile.getFilePath());
         if (file == null) {
             throw new IOException("Failed to download file from Telegram");
         }
