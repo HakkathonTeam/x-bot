@@ -1,14 +1,18 @@
 package com.xbot.model;
 
-import java.util.Set;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
+import com.fasterxml.jackson.annotation.JsonProperty;
+
+import java.util.List;
 
 /**
  * Result of extracting users from chat history.
  * Contains separate collections for participants, mentions, and channels.
- * TODO: Implement by Nickolay
  */
+@JsonIgnoreProperties(ignoreUnknown = true)
 public record ExtractionResult(
-        Set<User> participants,
-        Set<User> mentions,
-        Set<User> channels
+        @JsonProperty("name") String name,
+        @JsonProperty("type") String type,
+        @JsonProperty("id") long id,
+        @JsonProperty("messages") List<ChatMessage> messages
 ) {}
