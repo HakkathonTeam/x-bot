@@ -4,6 +4,7 @@ import com.xbot.model.User;
 import org.apache.poi.ss.usermodel.*;
 import org.apache.poi.xssf.usermodel.XSSFWorkbook;
 
+import java.io.File;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.time.LocalDateTime;
@@ -15,10 +16,13 @@ import java.util.List;
  */
 public class ExcelGenerator {
 
-    public String generateUsersExcel(List<User> users, String chatName) throws IOException {
+    public File generateUsersExcel(List<User> users, String chatName, String tempDirectory) throws IOException {
         String fileName = "telegram_users_" + System.currentTimeMillis() + ".xlsx";
+        File tempFile = new File(tempDirectory, fileName);
 
-        try (Workbook workbook = new XSSFWorkbook()) {
+        try (Workbook workbook = new XSSFWorkbook();
+             FileOutputStream outputStream = new FileOutputStream(tempFile)) {
+
             Sheet sheet = workbook.createSheet("Участники чата");
 
             // Стили
@@ -59,12 +63,10 @@ public class ExcelGenerator {
                 sheet.autoSizeColumn(i);
             }
 
-            // Сохранение файла
-            try (FileOutputStream outputStream = new FileOutputStream(fileName)) {
-                workbook.write(outputStream);
-            }
+            // Записываем в файл
+            workbook.write(outputStream);
         }
 
-        return fileName;
+        return tempFile;
     }
 }
