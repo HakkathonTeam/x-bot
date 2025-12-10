@@ -1,5 +1,7 @@
 package com.xbot.model;
 
+import java.util.Objects;
+
 /**
  * Represents a Telegram user extracted from chat history.
  * Uses id for equality/deduplication.
@@ -18,7 +20,7 @@ public record User(
         if (this == o) return true;
         if (o == null || getClass() != o.getClass()) return false;
         User user = (User) o;
-        return telegramId.equals(user.telegramId);
+        return Objects.equals(telegramId, user.telegramId);
     }
 
     @Override
