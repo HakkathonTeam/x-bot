@@ -51,6 +51,10 @@ public class ChatProcessingService {
             allUsers.addAll(participants);
         }
 
-        return excelGenerator.generateUsersExcel(allUsers, chatName);
+        String tempDir = System.getProperty("java.io.tmpdir");
+
+        return excelGenerator
+                .generateUsersExcel(allUsers, chatName, tempDir)
+                .getAbsolutePath();
     }
 }
