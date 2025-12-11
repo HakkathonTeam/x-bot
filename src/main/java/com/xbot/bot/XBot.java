@@ -21,6 +21,7 @@ import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
@@ -61,13 +62,13 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         this.sessionService.setProcessingCallback(this);
         // Добавляем shutdown hook для очистки временных файлов
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            fileUploadService.cleanupAllFiles();
-            executorService.shutdown();
+            this.sessionService.stopAllTimers();
+            this.sessionService.cleanAllFiles();
+            this.fileUploadService.deleteTempDir();
             try {
                 if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
                     // Задачи не завершились за 10 сек - отменяем
                     executorService.shutdownNow();
-
                     // Ждем еще немного после принудительной отмены
                     if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
                         log.error("Executor did not terminate");
@@ -238,14 +239,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             return;
         }
 
-        fileUploadService.cleanupUserFiles(userId, chatId);
+        sessionService.cleanFiles(userId, chatId);
         sendMessage(chatId, String.format(
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
 
     @Override
-    public void onProcessingBegin(Long chatId) {
+    public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
         sendMessage(chatId, Constants.PROCESS_BEGIN);
     }
 

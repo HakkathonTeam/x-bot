@@ -113,25 +113,13 @@ public class FileUploadService {
      * Clean up local files for a user
      */
     public void cleanupUserFiles(Long userId, Long chatId) {
-        List<UploadedFile> files = sessionService.getFiles(userId, chatId);
-        for (UploadedFile file : files) {
-            if (file.getLocalPath() != null) {
-                try {
-                    Files.deleteIfExists(Paths.get(file.getLocalPath()));
-                    log.debug("Deleted file: {}", file.getLocalPath());
-                } catch (IOException e) {
-                    log.warn("Failed to delete file: {}", file.getLocalPath(), e);
-                }
-            }
-        }
-        sessionService.clearFiles(userId, chatId);
+        sessionService.cleanFiles(userId, chatId);
     }
-
 
     /**
      * Clean up all temp files
      */
-    public void cleanupAllFiles() {
+    public void deleteTempDir() {
         try {
             Path dir = Paths.get(tempDirectory);
             if (Files.exists(dir)) {
