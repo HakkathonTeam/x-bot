@@ -108,24 +108,6 @@ public class FileUploadService {
     }
 
     /**
-     * Get file from session
-     */
-    /*public UploadedFile getFile(Long userId, int index) {
-        List<UploadedFile> files = sessionService.getFiles(userId);
-        if (index >= 0 && index < files.size()) {
-            return files.get(index);
-        }
-        return null;
-    }*/
-
-    /**
-     * Clean up local files for a user
-     */
-    public void cleanupUserFiles(Long userId, Long chatId) {
-        sessionService.cleanFiles(userId, chatId);
-    }
-
-    /**
      * Clean up all temp files
      */
     public void deleteTempDir() {
