@@ -226,6 +226,7 @@ public class SessionService {
                 }
             } catch (Exception e) {
                 log.error("Error during process: {}", e.getMessage());
+                Thread.currentThread().interrupt();
                 if (processingCallback != null) {
                     processingCallback.onProcessingError(session.chatId);
                 }
