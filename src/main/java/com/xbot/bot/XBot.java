@@ -14,13 +14,16 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Document;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.io.File;
 import java.nio.file.Path;
 import java.util.List;
 import java.util.concurrent.ExecutorService;
@@ -204,6 +207,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         } catch (TelegramApiException e) {
             log.error("Failed to send message to chat {}: {}", chatId, e.getMessage(), e);
         }
+    }
+
+    public void sendFileToUser(Long chatId, File fileToSend) throws TelegramApiException {
+        InputFile inputFile = new InputFile(fileToSend, fileToSend.getName());
+
+        SendDocument sendDocument = new SendDocument(chatId.toString(), inputFile);
+        sendDocument.setCaption("Файл с результатом");
+        telegramClient.execute(sendDocument);
     }
 
     private void showUploadedFiles(Long chatId, Long userId) {
