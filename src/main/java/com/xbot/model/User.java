@@ -4,13 +4,24 @@ import java.util.Objects;
 
 /**
  * Represents a Telegram user extracted from chat history.
- * Uses id for equality/deduplication.
+ * Uses telegramId for equality/deduplication.
  */
 public record User(
         String telegramId,
         String name,
         String fullName
 ) {
+    /**
+     * Constructor for HTML parsing where only display name is available.
+     * Uses displayName as both telegramId and name.
+     */
+    public User(String displayName) {
+        this(displayName, displayName, displayName);
+    }
+
+    /**
+     * Constructor with telegramId and name (fullName defaults to name).
+     */
     public User(String telegramId, String name) {
         this(telegramId, name, name);
     }
@@ -25,6 +36,6 @@ public record User(
 
     @Override
     public int hashCode() {
-        return telegramId.hashCode();
+        return Objects.hashCode(telegramId);
     }
 }
