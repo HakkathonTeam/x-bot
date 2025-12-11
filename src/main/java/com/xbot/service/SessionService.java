@@ -5,9 +5,6 @@ import com.xbot.model.UploadedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -48,7 +45,7 @@ public class SessionService {
     }
 
     // Map: userId -> list of uploaded files
-    private final Map<Long, UserSession> userSession = new ConcurrentHashMap<>();
+    private final Map<Long, UserSession> sessions = new ConcurrentHashMap<>();
     private ProcessingCallback processingCallback;
 
     private final int maxFilesPerUser;
@@ -122,7 +119,7 @@ public class SessionService {
     }*/
 
     private UserSession getOrCreateSession(Long userId, Long chatId) {
-        return userSession.computeIfAbsent(userId, k -> new UserSession(userId, chatId));
+        return sessions.computeIfAbsent(userId, k -> new UserSession(userId, chatId));
     }
 
     private void startProcessTimer(UserSession session) {
@@ -169,27 +166,10 @@ public class SessionService {
         if (processingCallback != null) {
             processingCallback.onProcessingBegin(session.chatId);
         }
-        try {
-            Iterator<UploadedFile> iterator = session.files.iterator();
-            while (iterator.hasNext()) {
-                UploadedFile file = iterator.next();
-                log.debug("Process file bgn: {}", file.getFileName());
-                Thread.sleep(5000);
-                Files.deleteIfExists(Paths.get(file.getLocalPath()));
-                log.debug("Process file end: {}", file.getFileName());
-                iterator.remove();
-            }
 
-        }  catch (IOException | InterruptedException e) {
-            if (processingCallback != null) {
-                processingCallback.onProcessingError(session.chatId);
-            }
-            throw new RuntimeException(e);
-        } finally {
-            session.state = UserSessionState.IDLE;
-        }
         if (processingCallback != null) {
             processingCallback.onProcessingComplete(session.chatId);
         }
+        session.state = UserSessionState.IDLE;
     }
 }
