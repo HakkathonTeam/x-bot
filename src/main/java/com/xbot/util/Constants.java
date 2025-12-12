@@ -20,6 +20,8 @@ public final class Constants {
     public static final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
     public static final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
     public static final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
+    public static final String ERROR_WAIT_FOR_PREVIOUS_REQUEST = "❌ Дождитесь окончания предыдущей обработки.";
+    public static final String ERROR_PROCESS = "❌ Ошибка обработки.";
     // Сообщения
     public static final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
     public static final String SUCCESSFUL_MSG = "✅ Файл загружен: %s\n" +
@@ -78,4 +80,7 @@ public final class Constants {
     public static final String NO_FILES_FOR_CLEAN_MSG = "📭 Нет файлов для очистки.";
     public static final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
     public static final String REQUEST_MSG = "Отправьте мне файлы экспорта чата (HTML/JSON) или используйте команды:\n/start - начать\n/help - помощь";
+    public static final String LAST_FILES_MSG = "\n👆 Можно отправить ещё %d файлов";
+    public static final String PROCESS_BEGIN="🧠 Обработка началась...";
+    public static final String PROCESS_COMPLETE="✅ Запрос обработан!!!";
 }

@@ -5,6 +5,7 @@ import com.xbot.exception.InvalidFileFormatException;
 import com.xbot.model.UploadedFile;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import org.telegram.telegrambots.meta.api.methods.GetFile;
 import org.telegram.telegrambots.meta.api.objects.Document;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
@@ -51,7 +52,7 @@ public class FileUploadService {
     /**
      * Download file from Telegram and save it locally
      */
-    public UploadedFile downloadFile(Long userId, Document document) throws IOException, TelegramApiException {
+    public UploadedFile downloadFile(Long userId, Long chatId, Document document) throws IOException, TelegramApiException {
         String fileId = document.getFileId();
         String fileName = document.getFileName();
         String mimeType = document.getMimeType();
@@ -73,7 +74,15 @@ public class FileUploadService {
         }
 
         // Download file from Telegram
-        java.io.File file = telegramClient.downloadFile(fileId);
+        org.telegram.telegrambots.meta.api.objects.File telegramFile;
+
+        GetFile getFileRequest = new GetFile(fileId);
+        telegramFile = telegramClient.execute(getFileRequest);
+        if (telegramFile == null || telegramFile.getFilePath() == null) {
+            throw new IOException("Can't get telegramfile for file_id: " + fileId);
+        }
+
+        java.io.File file = telegramClient.downloadFile(telegramFile.getFilePath());
         if (file == null) {
             throw new IOException("Failed to download file from Telegram");
         }
@@ -92,45 +101,16 @@ public class FileUploadService {
         }
 
         uploadedFile.setLocalPath(localPath.toString());
-        sessionService.addFile(userId, uploadedFile);
+        sessionService.addFile(userId, chatId, uploadedFile);
 
         log.info("File saved to: {}", localPath);
         return uploadedFile;
     }
 
     /**
-     * Get file from session
-     */
-    public UploadedFile getFile(Long userId, int index) {
-        List<UploadedFile> files = sessionService.getFiles(userId);
-        if (index >= 0 && index < files.size()) {
-            return files.get(index);
-        }
-        return null;
-    }
-
-    /**
-     * Clean up local files for a user
-     */
-    public void cleanupUserFiles(Long userId) {
-        List<UploadedFile> files = sessionService.getFiles(userId);
-        for (UploadedFile file : files) {
-            if (file.getLocalPath() != null) {
-                try {
-                    Files.deleteIfExists(Paths.get(file.getLocalPath()));
-                    log.debug("Deleted file: {}", file.getLocalPath());
-                } catch (IOException e) {
-                    log.warn("Failed to delete file: {}", file.getLocalPath(), e);
-                }
-            }
-        }
-        sessionService.clearFiles(userId);
-    }
-
-    /**
      * Clean up all temp files
      */
-    public void cleanupAllFiles() {
+    public void deleteTempDir() {
         try {
             Path dir = Paths.get(tempDirectory);
             if (Files.exists(dir)) {
