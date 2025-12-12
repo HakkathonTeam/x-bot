@@ -1,60 +1,67 @@
 package com.xbot.service;
 
-import com.xbot.model.ChatMessage;
-import com.xbot.model.ExtractionResult;
 import com.xbot.model.User;
+import com.xbot.model.ExtractionResult;
 import com.xbot.parser.ChatHistoryParser;
-import com.xbot.parser.JsonChatParser;
 import com.xbot.parser.ParserFactory;
 
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.HashSet;
-import java.util.List;
-import java.util.Set;
+import java.util.*;
 
 /**
- * Тестовый сервис для проверки JsonChatParser
- * TODO: удалить после тестирования
+ * Сервис для проверки JsonChatParser
  */
 public class ChatProcessingService {
 
-    private final ExcelGenerator excelGenerator = new ExcelGenerator();
+    private final ExcelGenerator excelGenerator;
+
+    public ChatProcessingService() {
+        this.excelGenerator = new ExcelGenerator();
+    }
 
     /**
      * Магический метод
      *
      * @param chatFiles список файлов с чатами (JSON/HTML)
      * @param chatName имя чата (для Excel)
+     * @param tempDirectory временная директория для генерации Excel
      * @return путь к Excel файлу
      */
-    public String process(List<Path> chatFiles, String chatName) throws Exception {
+    public String process(List<Path> chatFiles, String chatName, String tempDirectory) throws Exception {
 
-        List<User> allUsers = new ArrayList<>();
+        Set<User> allParticipants = new HashSet<>();
+        Set<User> allMentions = new HashSet<>();
+        Set<User> allChannels = new HashSet<>();
 
         for (Path file : chatFiles) {
-            String content = Files.readString(file);
-
-            ChatHistoryParser parser = ParserFactory.getParser(content);
-            ExtractionResult chat = parser.parse(content);
-
-            Set<User> participants = new HashSet<>();
-            Set<String> mentions   = new HashSet<>();
-            Set<String> channels   = new HashSet<>();
-
-            if (parser instanceof JsonChatParser jsonParser) {
-                List<ChatMessage> messages = chat.messages() != null ? chat.messages() : List.of();
-                jsonParser.extractFromMessages(messages, participants, mentions, channels);
+            if (!Files.exists(file)) {
+                System.err.println("Файл не найден: " + file);
+                continue;
             }
 
-            allUsers.addAll(participants);
+            String content = Files.readString(file);
+
+            // Выбираем нужный парсер
+            ChatHistoryParser parser = ParserFactory.getParser(content);
+
+            // Получаем ExtractionResult
+            ExtractionResult result = parser.parse(content);
+
+            // Добавляем участников, mentions и channels
+            if (result.participants() != null) allParticipants.addAll(result.participants());
+            if (result.mentions() != null) allMentions.addAll(result.mentions());
+            if (result.channels() != null) allChannels.addAll(result.channels());
         }
 
-        String tempDir = System.getProperty("java.io.tmpdir");
+        // Объединяем все в одну коллекцию для Excel
+        allParticipants.addAll(allMentions);
+        allParticipants.addAll(allChannels);
 
-        return excelGenerator
-                .generateUsersExcel(allUsers, chatName, tempDir)
-                .getAbsolutePath();
+        return excelGenerator.generateUsersExcel(
+                new ArrayList<>(allParticipants),
+                chatName,
+                tempDirectory
+        ).getAbsolutePath();
     }
 }
