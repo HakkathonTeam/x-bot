@@ -2,7 +2,6 @@ package com.xbot;
 
 import com.xbot.bot.XBot;
 import com.xbot.config.AppConfig;
-import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -25,10 +24,9 @@ public class XBotApplication {
 
             // Create services (manual DI)
             ExcelGenerator excelGenerator = new ExcelGenerator();
-            ParserFactory parserFactory = new ParserFactory();
 
             // Create bot with all dependencies
-            XBot bot = new XBot(config, parserFactory, excelGenerator);
+            XBot bot = new XBot(config, excelGenerator);
 
             // Start bot
             try (TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication()) {

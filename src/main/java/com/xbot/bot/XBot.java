@@ -1,5 +1,6 @@
 package com.xbot.bot;
 
+import com.xbot.model.User;
 import com.xbot.util.Constants;
 import com.xbot.config.AppConfig;
 import com.xbot.exception.FileSizeLimitExceededException;
@@ -23,8 +24,11 @@ import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.io.File;
+import java.nio.file.Files;
 import java.nio.file.Path;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -35,9 +39,8 @@ import java.util.concurrent.TimeUnit;
  */
 public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionService.ProcessingCallback {
     private final AppConfig config;
-    private final ParserFactory parserFactory;
     private final ExcelGenerator excelGenerator;
-    private TelegramClient telegramClient;
+    private final TelegramClient telegramClient;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
 
     private final SessionService sessionService;
@@ -46,10 +49,8 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
     private static final Logger log = LoggerFactory.getLogger(XBot.class);
 
     public XBot(AppConfig config,
-                ParserFactory parserFactory,
                 ExcelGenerator excelGenerator) {
         this.config = config;
-        this.parserFactory = parserFactory;
         this.excelGenerator = excelGenerator;
 
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
@@ -255,7 +256,22 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
 
     @Override
     public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
+        Set<User> result = new HashSet<>();
         sendMessage(chatId, Constants.PROCESS_BEGIN);
+
+        for (var fPath : files) {
+            var content = Files.readString(fPath);
+            var parse = ParserFactory.getParser(content).parse(content);
+            result.addAll(parse.participants());
+        }
+
+        if (!result.isEmpty()) {
+            sendFileToUser(chatId, excelGenerator.generateUsersExcel(result.stream().toList(),
+                    "result", fileUploadService.getTempDirectory()));
+        } else {
+            log.warn("Empty users list");
+            throw new RuntimeException("Empty users list");
+        }
     }
 
     @Override
