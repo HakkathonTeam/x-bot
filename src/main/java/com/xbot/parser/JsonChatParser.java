@@ -65,11 +65,7 @@ public class JsonChatParser implements ChatHistoryParser {
                 }
             }
 
-            return new ExtractionResult(
-                    participants,
-                    mentions,
-                    channels
-            );
+            return new ExtractionResult(participants, mentions, channels);
 
         } catch (Exception e) {
             throw new ParserException("Failed to parse JSON", e);
