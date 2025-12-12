@@ -9,7 +9,6 @@ import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
 import com.xbot.service.FileUploadService;
 import com.xbot.service.SessionService;
-import com.xbot.service.UserExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
@@ -37,7 +36,6 @@ import java.util.concurrent.TimeUnit;
 public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionService.ProcessingCallback {
     private final AppConfig config;
     private final ParserFactory parserFactory;
-    private final UserExtractor userExtractor;
     private final ExcelGenerator excelGenerator;
     private TelegramClient telegramClient;
     private final ExecutorService executorService = Executors.newCachedThreadPool();
@@ -49,11 +47,9 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
 
     public XBot(AppConfig config,
                 ParserFactory parserFactory,
-                UserExtractor userExtractor,
                 ExcelGenerator excelGenerator) {
         this.config = config;
         this.parserFactory = parserFactory;
-        this.userExtractor = userExtractor;
         this.excelGenerator = excelGenerator;
 
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
