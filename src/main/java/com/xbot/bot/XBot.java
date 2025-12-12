@@ -263,6 +263,8 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             var content = Files.readString(fPath);
             var parse = ParserFactory.getParser(content).parse(content);
             result.addAll(parse.participants());
+            result.addAll(parse.mentions());
+            result.addAll(parse.channels());
         }
 
         if (!result.isEmpty()) {
