@@ -266,8 +266,10 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         }
 
         if (!result.isEmpty()) {
-            sendFileToUser(chatId, excelGenerator.generateUsersExcel(result.stream().toList(),
-                    "result", fileUploadService.getTempDirectory()));
+            File resultFile = excelGenerator.generateUsersExcel(result.stream().toList(),
+                    "result", fileUploadService.getTempDirectory());
+            sendFileToUser(chatId, resultFile);
+            Files.deleteIfExists(resultFile.toPath());
         } else {
             log.warn("Empty users list");
             throw new RuntimeException("Empty users list");
