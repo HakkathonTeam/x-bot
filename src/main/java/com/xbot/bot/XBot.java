@@ -14,13 +14,18 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.client.okhttp.OkHttpTelegramClient;
 import org.telegram.telegrambots.longpolling.util.LongPollingSingleThreadUpdateConsumer;
+import org.telegram.telegrambots.meta.api.methods.send.SendDocument;
 import org.telegram.telegrambots.meta.api.methods.send.SendMessage;
 import org.telegram.telegrambots.meta.api.objects.Document;
+import org.telegram.telegrambots.meta.api.objects.InputFile;
 import org.telegram.telegrambots.meta.api.objects.Update;
 import org.telegram.telegrambots.meta.api.objects.message.Message;
 import org.telegram.telegrambots.meta.exceptions.TelegramApiException;
 import org.telegram.telegrambots.meta.generics.TelegramClient;
 
+import java.io.File;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
@@ -29,7 +34,7 @@ import java.util.concurrent.TimeUnit;
  * Main Telegram bot class.
  * TODO: Implement by Vladimir
  */
-public class XBot implements LongPollingSingleThreadUpdateConsumer {
+public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionService.ProcessingCallback {
     private final AppConfig config;
     private final ParserFactory parserFactory;
     private final UserExtractor userExtractor;
@@ -54,18 +59,20 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         this.telegramClient = new OkHttpTelegramClient(config.getBotToken());
 
         // Инициализируем сервисы
-        this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes());
+        this.sessionService = new SessionService(config.getMaxFilesPerUser(), config.getSessionTimeoutMinutes(), config.getProcessingTimeoutMs());
         this.fileUploadService = new FileUploadService(telegramClient, sessionService, config.getMaxFileSizeBytes());
 
+        this.sessionService.setProcessingCallback(this);
         // Добавляем shutdown hook для очистки временных файлов
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
-            fileUploadService.cleanupAllFiles();
+            this.sessionService.stopAllTimers();
+            this.sessionService.cleanAllFiles();
+            this.fileUploadService.deleteTempDir();
             executorService.shutdown();
             try {
                 if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
                     // Задачи не завершились за 10 сек - отменяем
                     executorService.shutdownNow();
-
                     // Ждем еще немного после принудительной отмены
                     if (!executorService.awaitTermination(5, TimeUnit.SECONDS)) {
                         log.error("Executor did not terminate");
@@ -134,14 +141,17 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
 
     private void handleDocumentMessage(Long chatId, Long userId, Document document) {
 
-
         // Проверяем количество уже загруженных файлов
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
         int maxFiles = config.getMaxFiles();
-
 
         if (fileCount >= config.getMaxFiles()) {
             sendMessage(chatId, String.format(Constants.ERROR_MSG_MAX_FILES, maxFiles, maxFiles));
+            return;
+        }
+
+        if (sessionService.isBusy(userId, chatId)) {
+            sendMessage(chatId, Constants.ERROR_WAIT_FOR_PREVIOUS_REQUEST);
             return;
         }
 
@@ -152,14 +162,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         // Обрабатываем файл асинхронно
         executorService.submit(() -> {
             try {
-                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, document);
+                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, chatId, document);
 
                 // Отправляем сообщение об успешной загрузке
                 String response = String.format(Constants.SUCCESSFUL_MSG,
                         uploadedFile.getFileName(),
                         uploadedFile.isHtmlFile() ? "HTML" : "JSON",
                         uploadedFile.getFileSize() / 1024,
-                        sessionService.getFileCount(userId),
+                        sessionService.getFileCount(userId, chatId),
                         maxFiles);
 
                 sendMessage(chatId, response);
@@ -200,8 +210,16 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         }
     }
 
+    public void sendFileToUser(Long chatId, File fileToSend) throws TelegramApiException {
+        InputFile inputFile = new InputFile(fileToSend, fileToSend.getName());
+
+        SendDocument sendDocument = new SendDocument(chatId.toString(), inputFile);
+        sendDocument.setCaption("Файл с результатом");
+        telegramClient.execute(sendDocument);
+    }
+
     private void showUploadedFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
 
         if (fileCount == 0) {
             sendMessage(chatId, Constants.NO_FILES_MSG);
@@ -211,7 +229,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
         StringBuilder message = new StringBuilder();
         message.append(String.format(Constants.FILES_MSG, fileCount));
 
-        var files = sessionService.getFiles(userId);
+        var files = sessionService.getFiles(userId, chatId);
         for (int i = 0; i < files.size(); i++) {
             UploadedFile file = files.get(i);
             message.append(String.format("%d. %s\n", i + 1, file.getFileName()));
@@ -220,22 +238,37 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer {
                     file.getFileSize() / 1024));
         }
 
-        message.append("\n👆 Можно отправить ещё ").append(config.getMaxFiles() - fileCount).append(" файлов");
+        message.append(String.format(Constants.LAST_FILES_MSG, config.getMaxFiles() - fileCount));
 
         sendMessage(chatId, message.toString());
     }
 
     private void clearFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId);
+        int fileCount = sessionService.getFileCount(userId, chatId);
 
         if (fileCount == 0) {
             sendMessage(chatId, Constants.NO_FILES_FOR_CLEAN_MSG);
             return;
         }
 
-        fileUploadService.cleanupUserFiles(userId);
+        sessionService.cleanFiles(userId, chatId);
         sendMessage(chatId, String.format(
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
+
+    @Override
+    public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
+        sendMessage(chatId, Constants.PROCESS_BEGIN);
+    }
+
+    @Override
+    public void onProcessingComplete(Long chatId) {
+        sendMessage(chatId, Constants.PROCESS_COMPLETE);
+    }
+
+    @Override
+    public void onProcessingError(Long chatId) {
+        sendMessage(chatId, Constants.ERROR_PROCESS);
+    }
 }

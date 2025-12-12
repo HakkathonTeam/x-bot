@@ -15,6 +15,7 @@ public class AppConfig {
     private final int maxFileSizeMB;
     private final int maxFilesPerUser;
     private final int sessionTimeoutMinutes;
+    private final int processingTimeoutMs;
 
     private static final Logger log = LoggerFactory.getLogger(AppConfig.class);
 
@@ -26,6 +27,7 @@ public class AppConfig {
         this.maxFileSizeMB = getEnvAsInt("MAX_FILE_SIZE_MB", 50);
         this.maxFilesPerUser = getEnvAsInt("MAX_FILES_PER_USER", 10);
         this.sessionTimeoutMinutes = getEnvAsInt("SESSION_TIMEOUT_MINUTES", 30);
+        this.processingTimeoutMs = getEnvAsInt("PROCESSING_TIMEOUT_MS", 3000);
 
         // Проверяем, что переменные установлены
         if (botUsername == null || botUsername.isBlank()) {
@@ -56,6 +58,7 @@ public class AppConfig {
 
     public int getSessionTimeoutMinutes() { return sessionTimeoutMinutes; }
     public int getMaxFilesPerUser() { return maxFilesPerUser; };
+    public int getProcessingTimeoutMs() { return processingTimeoutMs; }
 
     private int getEnvAsInt(String name, int defaultValue) {
         String value = System.getenv(name);
