@@ -1,6 +1,7 @@
 package com.xbot.bot;
 
 import com.xbot.model.User;
+import com.xbot.parser.ParserException;
 import com.xbot.util.Constants;
 import com.xbot.config.AppConfig;
 import com.xbot.exception.FileSizeLimitExceededException;
@@ -261,10 +262,15 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
 
         for (var fPath : files) {
             var content = Files.readString(fPath);
-            var parse = ParserFactory.getParser(content).parse(content);
-            result.addAll(parse.participants());
-            result.addAll(parse.mentions());
-            result.addAll(parse.channels());
+            try {
+                var parse = ParserFactory.getParser(content).parse(content);
+                result.addAll(parse.participants());
+                result.addAll(parse.mentions());
+                result.addAll(parse.channels());
+            } catch (ParserException e) {
+                log.warn("Parser error file: {}", fPath.getFileName());
+                sendMessage(chatId, String.format(Constants.ERROR_FILE_PROCESS, fPath.getFileName()));
+            }
         }
 
         if (!result.isEmpty()) {
@@ -274,7 +280,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             Files.deleteIfExists(resultFile.toPath());
         } else {
             log.warn("Empty users list");
-            throw new RuntimeException("Empty users list");
+            sendMessage(chatId, Constants.WARNING_USERS_LIST_EMPTY);
         }
     }
 
