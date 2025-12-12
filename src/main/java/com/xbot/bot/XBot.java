@@ -68,6 +68,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             this.sessionService.stopAllTimers();
             this.sessionService.cleanAllFiles();
             this.fileUploadService.deleteTempDir();
+            executorService.shutdown();
             try {
                 if (!executorService.awaitTermination(10, TimeUnit.SECONDS)) {
                     // Задачи не завершились за 10 сек - отменяем
