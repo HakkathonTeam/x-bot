@@ -1,17 +1,17 @@
 package com.xbot.parser;
 
 import com.fasterxml.jackson.databind.JsonNode;
+import com.xbot.model.ChatExport;
 import com.xbot.model.ChatMessage;
 import com.xbot.model.ExtractionResult;
 import com.xbot.model.User;
-import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
+import com.xbot.service.MentionExtractor;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Parser for Telegram JSON chat exports.
@@ -20,25 +20,59 @@ import java.util.regex.Pattern;
 public class JsonChatParser implements ChatHistoryParser {
 
     private final ObjectMapper mapper;
-    private static final Pattern MENTION_PATTERN = Pattern.compile("@\\w+");
+    private final MentionExtractor mentionExtractor;
 
     public JsonChatParser() {
         mapper = new ObjectMapper();
-        // Подключаем модуль для работы с LocalDateTime
         mapper.registerModule(new JavaTimeModule());
+        mentionExtractor = new MentionExtractor();
     }
 
     @Override
     public ExtractionResult parse(String content) throws ParserException {
-        if (content == null || content.isBlank()) {
-            throw new ParserException("Empty content");
-        }
-
         try {
-            // Десериализация JSON в ExtractionResult
-            return mapper.readValue(content, ExtractionResult.class);
-        } catch (JsonProcessingException e) {
-            throw new ParserException("Invalid JSON: " + e.getMessage(), e);
+            if (content == null || content.isBlank()) {
+                throw new ParserException("Empty JSON content");
+            }
+
+            // Десериализуем JSON в ChatExport
+            ChatExport chatExport = mapper.readValue(content, ChatExport.class);
+
+            List<ChatMessage> messages = chatExport.messages() != null ? chatExport.messages() : List.of();
+
+            Set<User> participants = new HashSet<>();
+            Set<User> mentions = new HashSet<>();
+            Set<User> channels = new HashSet<>();
+
+            for (ChatMessage msg : messages) {
+                if (msg.from() != null) {
+                    participants.add(new User(
+                            msg.fromId() != null ? msg.fromId() : msg.from(),
+                            msg.from(),
+                            msg.from()
+                    ));
+                }
+
+                Object textField = msg.text();
+                if (textField != null) {
+                    for (String username : mentionExtractor.extract(textField.toString())) {
+                        mentions.add(new User(username));
+                    }
+                }
+
+                if (msg.action() != null && msg.action().contains("channel")) {
+                    channels.add(new User(msg.actor() != null ? msg.actor() : "unknown"));
+                }
+            }
+
+            return new ExtractionResult(
+                    participants,
+                    mentions,
+                    channels
+            );
+
+        } catch (Exception e) {
+            throw new ParserException("Failed to parse JSON", e);
         }
     }
 
@@ -57,58 +91,5 @@ public class JsonChatParser implements ChatHistoryParser {
     @Override
     public String getFormatName() {
         return "JSON";
-    }
-
-    /**
-     * Извлекаем участников, упоминания и каналы из списка сообщений
-     */
-    public void extractFromMessages(List<ChatMessage> messages,
-                                    Set<User> participants,
-                                    Set<String> mentions,
-                                    Set<String> channels) {
-        if (messages == null) return;
-
-        for (ChatMessage msg : messages) {
-            // Участники
-            if (msg.from() != null) {
-                participants.add(new User(msg.fromId() != null ? msg.fromId() : msg.from(), msg.from(), msg.from()));
-            }
-
-            // Упоминания
-            extractMentions(msg.text(), mentions);
-
-            // Каналы
-            if ("service".equals(msg.type()) && msg.action() != null) {
-                String action = msg.action();
-                if (action.contains("channel")) { // простая фильтрация по слову "channel"
-                    channels.add(msg.actor() != null ? msg.actor() : "unknown");
-                }
-            }
-        }
-    }
-
-    /**
-     * Извлекаем упоминания из поля text
-     */
-    private void extractMentions(Object textField, Set<String> mentions) {
-        if (textField == null) return;
-
-        if (textField instanceof String str) {
-            Matcher m = MENTION_PATTERN.matcher(str);
-            while (m.find()) mentions.add(m.group());
-        } else if (textField instanceof List<?> list) {
-            for (Object item : list) {
-                if (item instanceof String strItem) {
-                    Matcher m = MENTION_PATTERN.matcher(strItem);
-                    while (m.find()) mentions.add(m.group());
-                } else if (item instanceof java.util.Map<?, ?> mapItem) {
-                    Object text = mapItem.get("text");
-                    if (text instanceof String strMap) {
-                        Matcher m = MENTION_PATTERN.matcher(strMap);
-                        while (m.find()) mentions.add(m.group());
-                    }
-                }
-            }
-        }
     }
 }
