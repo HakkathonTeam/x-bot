@@ -4,8 +4,6 @@ import com.xbot.bot.XBot;
 import com.xbot.config.AppConfig;
 import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
-import com.xbot.service.MentionExtractor;
-import com.xbot.service.UserExtractor;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.telegram.telegrambots.longpolling.TelegramBotsLongPollingApplication;
@@ -26,13 +24,11 @@ public class XBotApplication {
             log.info("Configuration loaded. Bot username: {}", config.getBotUsername());
 
             // Create services (manual DI)
-            MentionExtractor mentionExtractor = new MentionExtractor();
-            UserExtractor userExtractor = new UserExtractor(mentionExtractor);
             ExcelGenerator excelGenerator = new ExcelGenerator();
             ParserFactory parserFactory = new ParserFactory();
 
             // Create bot with all dependencies
-            XBot bot = new XBot(config, parserFactory, userExtractor, excelGenerator);
+            XBot bot = new XBot(config, parserFactory, excelGenerator);
 
             // Start bot
             try (TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication()) {
