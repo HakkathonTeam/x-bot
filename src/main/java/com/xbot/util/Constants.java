@@ -5,6 +5,7 @@ package com.xbot.util;
  * TODO: Implement by Vladimir
  */
 public final class Constants {
+    public static final int TEXT_OUTPUT_THRESHOLD = 50;
     // Команды
     public static final String START_CMD = "/start";
     public static final String HELP_CMD = "/help";
