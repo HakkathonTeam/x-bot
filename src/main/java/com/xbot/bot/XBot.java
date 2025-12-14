@@ -254,9 +254,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
-
-    private static final int TEXT_OUTPUT_THRESHOLD = 50;
-
     @Override
     public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
         Set<User> result = new HashSet<>();
@@ -281,7 +278,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             return;
         }
 
-        if (result.size() < TEXT_OUTPUT_THRESHOLD) {
+        if (result.size() < Constants.TEXT_OUTPUT_THRESHOLD) {
             sendMessage(chatId, formatUsersAsText(result));
         } else {
             File resultFile = excelGenerator.generateUsersExcel(result.stream().toList(),
