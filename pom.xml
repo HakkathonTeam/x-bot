@@ -98,6 +98,13 @@
             <version>5.14.2</version>
             <scope>test</scope>
         </dependency>
+
+        <!-- .env file support -->
+        <dependency>
+            <groupId>io.github.cdimascio</groupId>
+            <artifactId>dotenv-java</artifactId>
+            <version>3.0.0</version>
+        </dependency>
     </dependencies>
 
     <build>
