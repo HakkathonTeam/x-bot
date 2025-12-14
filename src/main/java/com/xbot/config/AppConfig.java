@@ -42,7 +42,13 @@ public class AppConfig {
     }
 
     private String getEnv(String name) {
-        return dotenv.get(name);
+        // First try .env file
+        String value = dotenv.get(name);
+        // Fall back to system environment if not found in .env
+        if (value == null || value.isBlank()) {
+            value = System.getenv(name);
+        }
+        return value;
     }
 
     public String getBotUsername() {
