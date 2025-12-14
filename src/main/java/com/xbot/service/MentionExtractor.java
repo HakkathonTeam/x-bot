@@ -12,7 +12,7 @@ import java.util.regex.Pattern;
 public class MentionExtractor {
 
     private static final Pattern USERNAME_PATTERN =
-            Pattern.compile("(?<=^|\\s)@[A-Za-z][A-Za-z0-9_]{4,31}"); //тут баг  [Text as array , {type=bold, text=@dave_user}] не видит
+            Pattern.compile("(?<![A-Za-z0-9])@[A-Za-z][A-Za-z0-9_]{3,30}[A-Za-z0-9]");
 
     public Set<String> extract(String text) {
         Set<String> result = new HashSet<>();
