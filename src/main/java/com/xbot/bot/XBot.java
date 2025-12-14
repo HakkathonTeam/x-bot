@@ -254,7 +254,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
                 Constants.DELETED_FILES_MSG, fileCount));
     }
 
-
     @Override
     public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
         Set<User> result = new HashSet<>();
@@ -273,15 +272,33 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             }
         }
 
-        if (!result.isEmpty()) {
+        if (result.isEmpty()) {
+            log.warn("Empty users list");
+            sendMessage(chatId, Constants.WARNING_USERS_LIST_EMPTY);
+            return;
+        }
+
+        if (result.size() < Constants.TEXT_OUTPUT_THRESHOLD) {
+            sendMessage(chatId, formatUsersAsText(result));
+        } else {
             File resultFile = excelGenerator.generateUsersExcel(result.stream().toList(),
                     "result", fileUploadService.getTempDirectory());
             sendFileToUser(chatId, resultFile);
             Files.deleteIfExists(resultFile.toPath());
-        } else {
-            log.warn("Empty users list");
-            sendMessage(chatId, Constants.WARNING_USERS_LIST_EMPTY);
         }
+    }
+
+    private String formatUsersAsText(Set<User> users) {
+        StringBuilder sb = new StringBuilder();
+        sb.append(String.format("👥 Найдено пользователей: %d\n\n", users.size()));
+        int counter = 1;
+        for (User user : users) {
+            String link = user.telegramId().startsWith("user")
+                    ? "tg://user?id=" + user.telegramId().substring(4)
+                    : "@" + user.telegramId();
+            sb.append(String.format("%d. %s (%s)\n", counter++, user.fullName(), link));
+        }
+        return sb.toString();
     }
 
     @Override
