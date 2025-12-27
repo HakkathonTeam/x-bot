@@ -7,9 +7,7 @@ import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
 import org.jsoup.select.Elements;
 
-import java.util.HashMap;
 import java.util.HashSet;
-import java.util.Map;
 import java.util.Set;
 
 /**
@@ -30,9 +28,6 @@ public class HtmlChatParser implements ChatHistoryParser {
             Set<User> participants = new HashSet<>();
             Set<User> mentions = new HashSet<>();
             Set<User> channels = new HashSet<>();
-
-            // Map normalized participant names for deduplication
-            Map<String, User> participantsByNormalizedName = new HashMap<>();
 
             Elements messages = doc.select("div.message");
 
@@ -58,22 +53,12 @@ public class HtmlChatParser implements ChatHistoryParser {
 
                 User user = new User(displayName);
                 participants.add(user);
-                participantsByNormalizedName.put(normalizeName(displayName), user);
 
                 // Extract mentions from <a> tags (real Telegram mentions)
                 extractMentionsFromLinks(msg, mentions);
             }
 
-            // Filter out mentions that match participants (by normalized name)
-            Set<User> filteredMentions = new HashSet<>();
-            for (User mention : mentions) {
-                String normalizedUsername = normalizeName(mention.telegramId());
-                if (!participantsByNormalizedName.containsKey(normalizedUsername)) {
-                    filteredMentions.add(mention);
-                }
-            }
-
-            return new ExtractionResult(participants, filteredMentions, channels);
+            return new ExtractionResult(participants, mentions, channels);
 
         } catch (Exception e) {
             throw new ParserException("Failed to parse HTML", e);
@@ -109,16 +94,6 @@ public class HtmlChatParser implements ChatHistoryParser {
         // Remove date span that appears in forwarded messages
         clone.select("span.date").remove();
         return clone.text().trim();
-    }
-
-    /**
-     * Normalizes a name for comparison: lowercase, remove spaces and underscores.
-     * "Theatre Light" -> "theatrelight"
-     * "TheatreLight" -> "theatrelight"
-     */
-    private String normalizeName(String name) {
-        if (name == null) return "";
-        return name.toLowerCase().replaceAll("[\\s_]", "");
     }
 
     /**
