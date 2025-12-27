@@ -256,49 +256,80 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
 
     @Override
     public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
-        Set<User> result = new HashSet<>();
+        Set<User> participants = new HashSet<>();
+        Set<User> mentions = new HashSet<>();
+        Set<User> channels = new HashSet<>();
         sendMessage(chatId, Constants.PROCESS_BEGIN);
 
         for (var fPath : files) {
             var content = Files.readString(fPath);
             try {
                 var parse = ParserFactory.getParser(content).parse(content);
-                result.addAll(parse.participants());
-                result.addAll(parse.mentions());
-                result.addAll(parse.channels());
+                participants.addAll(parse.participants());
+                mentions.addAll(parse.mentions());
+                channels.addAll(parse.channels());
             } catch (ParserException e) {
                 log.warn("Parser error file: {}", fPath.getFileName());
                 sendMessage(chatId, String.format(Constants.ERROR_FILE_PROCESS, fPath.getFileName()));
             }
         }
 
-        if (result.isEmpty()) {
+        if (participants.isEmpty() && mentions.isEmpty() && channels.isEmpty()) {
             log.warn("Empty users list");
             sendMessage(chatId, Constants.WARNING_USERS_LIST_EMPTY);
             return;
         }
 
-        if (result.size() < Constants.TEXT_OUTPUT_THRESHOLD) {
-            sendMessage(chatId, formatUsersAsText(result));
+        int totalCount = participants.size() + mentions.size() + channels.size();
+        if (totalCount < Constants.TEXT_OUTPUT_THRESHOLD) {
+            sendMessage(chatId, formatResultAsText(participants, mentions, channels));
         } else {
-            File resultFile = excelGenerator.generateUsersExcel(result.stream().toList(),
+            File resultFile = excelGenerator.generateExcel(participants, mentions, channels,
                     "result", fileUploadService.getTempDirectory());
             sendFileToUser(chatId, resultFile);
             Files.deleteIfExists(resultFile.toPath());
         }
     }
 
-    private String formatUsersAsText(Set<User> users) {
+    private String formatResultAsText(Set<User> participants, Set<User> mentions, Set<User> channels) {
         StringBuilder sb = new StringBuilder();
-        sb.append(String.format("👥 Найдено пользователей: %d\n\n", users.size()));
-        int counter = 1;
-        for (User user : users) {
-            String link = user.telegramId().startsWith("user")
-                    ? "tg://user?id=" + user.telegramId().substring(4)
-                    : "@" + user.telegramId();
-            sb.append(String.format("%d. %s (%s)\n", counter++, user.fullName(), link));
+        int totalCount = participants.size() + mentions.size() + channels.size();
+        sb.append(String.format("👥 Найдено: %d\n", totalCount));
+
+        if (!participants.isEmpty()) {
+            sb.append(String.format("\n📝 Участники (%d):\n", participants.size()));
+            int counter = 1;
+            for (User user : participants) {
+                sb.append(String.format("%d. %s (%s)\n", counter++, user.fullName(), formatUserLink(user)));
+            }
         }
+
+        if (!mentions.isEmpty()) {
+            sb.append(String.format("\n💬 Упоминания (%d):\n", mentions.size()));
+            int counter = 1;
+            for (User user : mentions) {
+                sb.append(String.format("%d. %s (%s)\n", counter++, user.fullName(), formatUserLink(user)));
+            }
+        }
+
+        if (!channels.isEmpty()) {
+            sb.append(String.format("\n📢 Каналы (%d):\n", channels.size()));
+            int counter = 1;
+            for (User user : channels) {
+                sb.append(String.format("%d. %s\n", counter++, user.fullName()));
+            }
+        }
+
         return sb.toString();
+    }
+
+    private String formatUserLink(User user) {
+        if (user.telegramId() == null) {
+            return "";
+        }
+        return user.telegramId().startsWith("user")
+                ? "tg://user?id=" + user.telegramId().substring(4)
+                : "@" + user.telegramId();
     }
 
     @Override

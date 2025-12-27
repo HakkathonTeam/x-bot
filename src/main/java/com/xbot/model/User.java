@@ -8,6 +8,7 @@ import java.util.Objects;
  */
 public record User(
         String telegramId,
+        String username,
         String name,
         String fullName
 ) {
@@ -16,14 +17,36 @@ public record User(
      * Uses displayName as both telegramId and name.
      */
     public User(String displayName) {
-        this(displayName, displayName, displayName);
+        this(displayName, null, displayName, displayName);
     }
 
     /**
      * Constructor with telegramId and name (fullName defaults to name).
      */
     public User(String telegramId, String name) {
-        this(telegramId, name, name);
+        this(telegramId, null, name, name);
+    }
+
+    /**
+     * Constructor with telegramId, name and fullName (no username).
+     */
+    public User(String telegramId, String name, String fullName) {
+        this(telegramId, null, name, fullName);
+    }
+
+    /**
+     * Returns the username without @ prefix if available.
+     */
+    public String getUsernameClean() {
+        if (username == null) return null;
+        return username.startsWith("@") ? username.substring(1) : username;
+    }
+
+    /**
+     * Checks if this user has a numeric telegramId (starts with "user").
+     */
+    public boolean hasNumericId() {
+        return telegramId != null && telegramId.startsWith("user");
     }
 
     @Override
