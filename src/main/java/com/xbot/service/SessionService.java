@@ -7,12 +7,10 @@ import org.slf4j.LoggerFactory;
 
 import java.io.IOException;
 import java.nio.file.Files;
-import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.time.LocalDateTime;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.stream.Collectors;
 
 /**
  * Manages user sessions and uploaded files
@@ -23,9 +21,10 @@ public class SessionService {
 
     public enum UserSessionState {
         IDLE,
+        UPLOADING_BGN,
         UPLOADING,
         PROCESSING
-    };
+    }
 
     private static class UserSession{
         Long userId;
@@ -34,19 +33,15 @@ public class SessionService {
         Timer timer;
         LocalDateTime lastActivity;
         Long chatId;
+        boolean maxFilesErrorMsgFlag;
+        int fileCount;
 
         UserSession(Long userId, Long chatId) {
             this.userId = userId;
             this.chatId = chatId;
             this.lastActivity = LocalDateTime.now();
-        }
-
-        List<Path> getPathList() {
-            return files.stream()
-                    .map(UploadedFile::getLocalPath)
-                    .filter(path -> path != null && !path.isEmpty())
-                    .map(Paths::get)
-                    .collect(Collectors.toList());
+            this.maxFilesErrorMsgFlag = false;
+            this.fileCount = 0;
         }
 
         void deleteFiles() {
@@ -67,7 +62,7 @@ public class SessionService {
     }
 
     public interface ProcessingCallback {
-        void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception;
+        boolean onProcessingBegin(Long userId, Long chatId, List<UploadedFile> files) throws Exception;
         void onProcessingComplete(Long chatId);
         void onProcessingError(Long chatId);
     }
@@ -115,25 +110,12 @@ public class SessionService {
         log.info("Added file {} for user {}, total files: {}, state: {}",
                 file.getFileName(), userId, session.files.size(), session.state);
 
-        if (session.state == UserSessionState.IDLE) {
+        if (session.state == UserSessionState.IDLE || session.state == UserSessionState.UPLOADING_BGN) {
             session.state = UserSessionState.UPLOADING;
             startProcessTimer(session);
         } else if (session.state == UserSessionState.UPLOADING) {
             resetProcessTimer(session);
         }
-    }
-
-    public List<UploadedFile> getFiles(Long userId, Long chatId) {
-        UserSession session = getOrCreateSession(userId, chatId);
-        return session.files;
-    }
-
-    public synchronized void cleanFiles(Long userId, Long chatId) {
-        UserSession session = getOrCreateSession(userId, chatId);
-        synchronized (session) {
-            session.deleteFiles();
-        }
-        log.info("Cleared files for user {}", userId);
     }
 
     public synchronized void cleanAllFiles() {
@@ -142,12 +124,22 @@ public class SessionService {
 
     public int getFileCount(Long userId, Long chatId) {
         UserSession session = getOrCreateSession(userId, chatId);
-        return session.files.size();
+        return session.fileCount;
     }
 
     public boolean isBusy(Long userId, Long chatId) {
         UserSession session = getOrCreateSession(userId, chatId);
         return session.state == UserSessionState.PROCESSING;
+    }
+
+    public boolean isIdle(Long userId, Long chatId) {
+        UserSession session = getOrCreateSession(userId, chatId);
+        return session.state == UserSessionState.IDLE;
+    }
+
+    public void setUploadBegin(Long userId, Long chatId) {
+        UserSession session = getOrCreateSession(userId, chatId);
+        session.state = UserSessionState.UPLOADING_BGN;
     }
 
     public synchronized void cleanupOldSessions() {
@@ -169,6 +161,21 @@ public class SessionService {
     public synchronized void stopAllTimers() {
         cleanupTimer.cancel();
         sessions.values().forEach(this::cancelTimer);
+    }
+
+    public boolean maxFilesErrorMsgWasSend(Long userId, Long chatId) {
+        UserSession session = getOrCreateSession(userId, chatId);
+        return session.maxFilesErrorMsgFlag;
+    }
+
+    public void setMaxFilesErrorMsgWasSend(Long userId, Long chatId) {
+        UserSession session = getOrCreateSession(userId, chatId);
+        session.maxFilesErrorMsgFlag = true;
+    }
+
+    public void increaseFileCount(Long userId, Long chatId) {
+        UserSession session = getOrCreateSession(userId, chatId);
+        session.fileCount++;
     }
 
     private UserSession getOrCreateSession(Long userId, Long chatId) {
@@ -211,6 +218,8 @@ public class SessionService {
             if (session.files.isEmpty()) {
                 log.warn("Oops! No files to process for user {}", session.userId);
                 session.state = UserSessionState.IDLE;
+                session.maxFilesErrorMsgFlag = false;
+                session.fileCount = 0;
                 return;
             }
 
@@ -220,9 +229,12 @@ public class SessionService {
             try {
                 if (processingCallback != null) {
                     log.debug("Process begin for user: {}", session.userId);
-                    processingCallback.onProcessingBegin(session.userId, session.chatId, session.getPathList());
+                    if (processingCallback.onProcessingBegin(session.userId, session.chatId, session.files)) {
+                        processingCallback.onProcessingComplete(session.chatId);
+                    } else {
+                        processingCallback.onProcessingError(session.chatId);
+                    }
                     session.deleteFiles();
-                    processingCallback.onProcessingComplete(session.chatId);
                 }
             } catch (Exception e) {
                 log.error("Error during process: {}", e.getMessage());
@@ -234,5 +246,7 @@ public class SessionService {
             log.debug("Process end for user: {}", session.userId);
             session.lastActivity = LocalDateTime.now();
             session.state = UserSessionState.IDLE;
+            session.maxFilesErrorMsgFlag = false;
+            session.fileCount = 0;
     }
 }
