@@ -10,7 +10,13 @@
       "date_unixtime": "1704090000",
       "from": "Alice",
       "from_id": "user123",
-      "text": "Hello @bob_user and @carol!"
+      "text": "Hello @bob_user and @carol!",
+      "text_entities": [
+        {"type": "plain", "text": "Hello "},
+        {"type": "mention", "text": "@bob_user"},
+        {"type": "plain", "text": " and "},
+        {"type": "mention", "text": "@carol"}
+      ]
     },
     {
       "id": 11,
@@ -22,6 +28,10 @@
       "text": [
         "Text as array ",
         {"type": "bold", "text": "@dave_user"}
+      ],
+      "text_entities": [
+        {"type": "plain", "text": "Text as array "},
+        {"type": "mention", "text": "@dave_user"}
       ]
     },
     {

@@ -32,7 +32,6 @@ public class XBotApplication {
             try (TelegramBotsLongPollingApplication botsApplication = new TelegramBotsLongPollingApplication()) {
                 botsApplication.registerBot(config.getBotToken(), bot);
                 log.info("X-Bot started successfully!");
-
                 // Keep running
                 Thread.currentThread().join();
             }

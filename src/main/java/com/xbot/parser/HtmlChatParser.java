@@ -2,7 +2,6 @@ package com.xbot.parser;
 
 import com.xbot.model.ExtractionResult;
 import com.xbot.model.User;
-import com.xbot.service.MentionExtractor;
 import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 import org.jsoup.nodes.Element;
@@ -13,11 +12,8 @@ import java.util.Set;
 
 /**
  * Parser for Telegram HTML chat exports.
- * TODO: Implement by Vica
  */
 public class HtmlChatParser implements ChatHistoryParser {
-
-    private final MentionExtractor mentionExtractor = new MentionExtractor();
 
     @Override
     public ExtractionResult parse(String content) throws ParserException {
@@ -46,7 +42,7 @@ public class HtmlChatParser implements ChatHistoryParser {
                     continue;
                 }
 
-                String displayName = from.text().trim();
+                String displayName = extractDisplayName(from);
                 if (displayName.isEmpty()) {
                     continue;
                 }
@@ -55,20 +51,13 @@ public class HtmlChatParser implements ChatHistoryParser {
                     continue;
                 }
 
-                String text = extractFullText(msg);
-
                 User user = new User(displayName);
                 participants.add(user);
 
-                if (!text.isBlank()) {
-                    var usernames = mentionExtractor.extract(text);
-
-                    for (String username : usernames) {
-                        User mentionedUser = new User(username);
-                        mentions.add(mentionedUser);
-                    }
-                }
+                // Extract mentions from <a> tags (real Telegram mentions)
+                extractMentionsFromLinks(msg, mentions);
             }
+
             return new ExtractionResult(participants, mentions, channels);
 
         } catch (Exception e) {
@@ -95,22 +84,56 @@ public class HtmlChatParser implements ChatHistoryParser {
         return lower.contains("deleted account") || lower.contains("удалённый аккаунт");
     }
 
-    private String extractFullText(Element msg) {
-        Elements textBlocks = msg.select("div.text");
-        if (textBlocks.isEmpty()) {
-            return "";
-        }
+    /**
+     * Extracts display name from from_name element, excluding date span.
+     * Forwarded messages have: Name <span class="date details">timestamp</span>
+     */
+    private String extractDisplayName(Element fromElement) {
+        // Clone to avoid modifying original DOM
+        Element clone = fromElement.clone();
+        // Remove date span that appears in forwarded messages
+        clone.select("span.date").remove();
+        return clone.text().trim();
+    }
 
-        StringBuilder sb = new StringBuilder();
-        for (Element block : textBlocks) {
-            String part = block.text().trim();
-            if (part.isEmpty()) continue;
+    /**
+     * Extracts mentions from <a> tags in the message.
+     * Telegram HTML exports mark mentions as:
+     * - <a href="https://t.me/username">@username</a> for @mentions
+     * - <a href="tg://user?id=12345">Display Name</a> for text mentions
+     */
+    private void extractMentionsFromLinks(Element msg, Set<User> mentions) {
+        Elements links = msg.select("div.text a[href]");
 
-            if (sb.length() > 0) {
-                sb.append("\n");
+        for (Element link : links) {
+            String href = link.attr("href");
+            String text = link.text().trim();
+
+            if (href.startsWith("tg://user?id=")) {
+                // Text mention with user ID: tg://user?id=12345
+                String idString = href.replace("tg://user?id=", "");
+                // Validate it's numeric
+                if (!idString.isEmpty() && idString.chars().allMatch(Character::isDigit)) {
+                    String telegramId = "user" + idString;
+                    mentions.add(new User(telegramId, null, text, text));
+                }
+            } else if (href.startsWith("https://t.me/") || href.startsWith("http://t.me/")) {
+                // @username mention: https://t.me/username
+                String username = href.replaceFirst("https?://t\\.me/", "");
+                if (!username.isEmpty() && !username.contains("/")) {
+                    // Clean up display text
+                    String displayName;
+                    if (text.startsWith("@")) {
+                        displayName = text.substring(1);
+                    } else if (text.startsWith("https://t.me/") || text.startsWith("http://t.me/")) {
+                        // Link text is URL itself, use username as display name
+                        displayName = username;
+                    } else {
+                        displayName = text;
+                    }
+                    mentions.add(new User(username, username, displayName, displayName));
+                }
             }
-            sb.append(part);
         }
-        return sb.toString();
     }
 }
