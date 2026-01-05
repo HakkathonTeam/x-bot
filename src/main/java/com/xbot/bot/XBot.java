@@ -1,12 +1,12 @@
 package com.xbot.bot;
 
+import com.xbot.model.UploadedFile;
 import com.xbot.model.User;
 import com.xbot.parser.ParserException;
 import com.xbot.util.Constants;
 import com.xbot.config.AppConfig;
 import com.xbot.exception.FileSizeLimitExceededException;
 import com.xbot.exception.InvalidFileFormatException;
-import com.xbot.model.UploadedFile;
 import com.xbot.parser.ParserFactory;
 import com.xbot.service.ExcelGenerator;
 import com.xbot.service.FileUploadService;
@@ -26,7 +26,7 @@ import org.telegram.telegrambots.meta.generics.TelegramClient;
 
 import java.io.File;
 import java.nio.file.Files;
-import java.nio.file.Path;
+import java.nio.file.Paths;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
@@ -105,7 +105,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
 
         // Обработка команд
         if (text != null && text.startsWith("/")) {
-            handleCommand(chatId, userId, text, message.getFrom().getFirstName());
+            handleCommand(chatId, text, message.getFrom().getFirstName());
         } else if (message.hasDocument()) {
             handleDocumentMessage(chatId, userId, message.getDocument());
         } else {
@@ -113,7 +113,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         }
     }
 
-    private void handleCommand(Long chatId, Long userId, String command, String userName) {
+    private void handleCommand(Long chatId, String command, String userName) {
         String cmd = command.split(" ")[0].toLowerCase();
 
         switch (cmd) {
@@ -122,15 +122,6 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
                 break;
             case Constants.HELP_CMD:
                 sendHelpMessage(chatId);
-                break;
-            case Constants.TEST_CMD:
-                sendMessage(chatId, Constants.TEST_MSG_ANSWER);
-                break;
-            case Constants.FILES_CMD:
-                showUploadedFiles(chatId, userId);
-                break;
-            case Constants.CLEAR_CMD:
-                clearFiles(chatId, userId);
                 break;
             default:
                 sendMessage(chatId, Constants.UNKNOWN_MSG_ANSWER);
@@ -143,9 +134,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         int fileCount = sessionService.getFileCount(userId, chatId);
         int maxFiles = config.getMaxFiles();
 
-        if (fileCount >= config.getMaxFiles()) {
-            sendMessage(chatId, String.format(Constants.ERROR_MSG_MAX_FILES, maxFiles, maxFiles));
+        if (fileCount >= maxFiles) {
+            if (!sessionService.maxFilesErrorMsgWasSend(userId, chatId)) {
+                sessionService.setMaxFilesErrorMsgWasSend(userId, chatId);
+                sendMessage(chatId, String.format(Constants.ERROR_MSG_MAX_FILES, maxFiles, maxFiles));
+            }
             return;
+        } else {
+            sessionService.increaseFileCount(userId, chatId);
         }
 
         if (sessionService.isBusy(userId, chatId)) {
@@ -154,24 +150,14 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         }
 
         // Отправляем сообщение о начале загрузки
-        String fileName = document.getFileName();
-        sendMessage(chatId, String.format(Constants.PROGRESS_MSG_WAIT, fileName));
-
+        if (sessionService.isIdle(userId, chatId)) {
+            sessionService.setUploadBegin(userId, chatId);
+            sendMessage(chatId, String.format(Constants.PROGRESS_MSG_WAIT));
+        }
         // Обрабатываем файл асинхронно
         executorService.submit(() -> {
             try {
-                UploadedFile uploadedFile = fileUploadService.downloadFile(userId, chatId, document);
-
-                // Отправляем сообщение об успешной загрузке
-                String response = String.format(Constants.SUCCESSFUL_MSG,
-                        uploadedFile.getFileName(),
-                        uploadedFile.isHtmlFile() ? "HTML" : "JSON",
-                        uploadedFile.getFileSize() / 1024,
-                        sessionService.getFileCount(userId, chatId),
-                        maxFiles);
-
-                sendMessage(chatId, response);
-
+                fileUploadService.downloadFile(userId, chatId, document);
             } catch (InvalidFileFormatException e) {
                 sendMessage(chatId, Constants.ERROR_MSG_WRONG_FORMAT);
             } catch (FileSizeLimitExceededException e) {
@@ -216,68 +202,30 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
         telegramClient.execute(sendDocument);
     }
 
-    private void showUploadedFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId, chatId);
-
-        if (fileCount == 0) {
-            sendMessage(chatId, Constants.NO_FILES_MSG);
-            return;
-        }
-
-        StringBuilder message = new StringBuilder();
-        message.append(String.format(Constants.FILES_MSG, fileCount));
-
-        var files = sessionService.getFiles(userId, chatId);
-        for (int i = 0; i < files.size(); i++) {
-            UploadedFile file = files.get(i);
-            message.append(String.format("%d. %s\n", i + 1, file.getFileName()));
-            message.append(String.format("   📊 %s | 💾 %d KB\n",
-                    file.isHtmlFile() ? "HTML" : "JSON",
-                    file.getFileSize() / 1024));
-        }
-
-        message.append(String.format(Constants.LAST_FILES_MSG, config.getMaxFiles() - fileCount));
-
-        sendMessage(chatId, message.toString());
-    }
-
-    private void clearFiles(Long chatId, Long userId) {
-        int fileCount = sessionService.getFileCount(userId, chatId);
-
-        if (fileCount == 0) {
-            sendMessage(chatId, Constants.NO_FILES_FOR_CLEAN_MSG);
-            return;
-        }
-
-        sessionService.cleanFiles(userId, chatId);
-        sendMessage(chatId, String.format(
-                Constants.DELETED_FILES_MSG, fileCount));
-    }
-
     @Override
-    public void onProcessingBegin(Long userId, Long chatId, List<Path> files) throws Exception {
+    public boolean onProcessingBegin(Long userId, Long chatId, List<UploadedFile> files) throws Exception {
         Set<User> participants = new HashSet<>();
         Set<User> mentions = new HashSet<>();
         Set<User> channels = new HashSet<>();
         sendMessage(chatId, Constants.PROCESS_BEGIN);
 
-        for (var fPath : files) {
-            var content = Files.readString(fPath);
+        for (var f : files) {
+            var content = Files.readString(Paths.get(f.getLocalPath()));
             try {
                 var parse = ParserFactory.getParser(content).parse(content);
                 participants.addAll(parse.participants());
                 mentions.addAll(parse.mentions());
                 channels.addAll(parse.channels());
             } catch (ParserException e) {
-                log.warn("Parser error file: {}", fPath.getFileName());
-                sendMessage(chatId, String.format(Constants.ERROR_FILE_PROCESS, fPath.getFileName()));
+                log.warn("Parser error file: {}", f.getFileName());
+                sendMessage(chatId, String.format(Constants.ERROR_FILE_PROCESS, f.getFileName()));
+                return false;
             }
         }
 
         if (participants.isEmpty() && mentions.isEmpty() && channels.isEmpty()) {
             log.warn("Empty users list");
             sendMessage(chatId, Constants.WARNING_USERS_LIST_EMPTY);
-            return;
         }
 
         int totalCount = participants.size() + mentions.size() + channels.size();
@@ -289,6 +237,7 @@ public class XBot implements LongPollingSingleThreadUpdateConsumer, SessionServi
             sendFileToUser(chatId, resultFile);
             Files.deleteIfExists(resultFile.toPath());
         }
+        return true;
     }
 
     private String formatResultAsText(Set<User> participants, Set<User> mentions, Set<User> channels) {

@@ -9,15 +9,11 @@ public final class Constants {
     // Команды
     public static final String START_CMD = "/start";
     public static final String HELP_CMD = "/help";
-    public static final String TEST_CMD = "/test";
-    public static final String FILES_CMD = "/files";
-    public static final String CLEAR_CMD = "/clear";
     // Стандартные ответы
-    public static final String TEST_MSG_ANSWER = "✅ Бот работает! Тестовое сообщение получено.";
     public static final String UNKNOWN_MSG_ANSWER = "Неизвестная команда. Используйте /help для списка команд.";
     // Сообщения с ошибками
     public static final String ERROR_MSG_MAX_FILES = "❌ Вы уже загрузили максимальное количество файлов (%d).\n" +
-            "Используйте /clear чтобы очистить или отправляйте файлы пачками до %d штук.";
+            "Отправляйте файлы пачками до %d штук.";
     public static final String ERROR_MSG_MAX_FILE_SIZE = "❌ Ошибка: \nНеверный размер файла %s. Максимальный размер файла: %d Мб";
     public static final String ERROR_MSG_WRONG_FORMAT = "❌ Ошибка: \nПоддерживаются только HTML и JSON файлы.";
     public static final String ERROR_MSG_UNKNOWN_DOWNLOAD = "❌ Не удалось загрузить файл. Попробуйте ещё раз.";
@@ -26,17 +22,7 @@ public final class Constants {
     public static final String ERROR_FILE_PROCESS = "❌ Ошибка при обработке файла: %s";
     public static final String WARNING_USERS_LIST_EMPTY = "⚠️ Внимание! Не найдено ни одного пользователя!";
     // Сообщения
-    public static final String PROGRESS_MSG_WAIT = "📥 Загружаю файл: %s\n⏳ Пожалуйста, подождите...";
-    public static final String SUCCESSFUL_MSG = """
-            ✅ Файл загружен: %s
-            📊 Формат: %s
-            💾 Размер: %d KB
-            📁 Всего файлов: %d/%d
-            
-            Отправьте ещё файлы или используйте команды:
-            /files - показать все файлы
-            /clear - очистить
-            /help - справка""";
+    public static final String PROGRESS_MSG_WAIT = "📥 Загрузка файлов\n⏳ Пожалуйста, подождите...";
     public static final String WELCOME_MSG = """
             👋 Привет, %s!
             
@@ -53,21 +39,15 @@ public final class Constants {
             
             **Команды:**
             /help - полная справка
-            /files - показать загруженные файлы
-            /clear - очистить файлы
+            /start - это сообщение
             
             Готов к работе! 🚀
             """;
-    public static final String NO_FILES_MSG = "📭 У вас нет загруженных файлов.\nОтправьте мне файлы экспорта чата (HTML/JSON).";
-    public static final String FILES_MSG = "📁 Загруженные файлы (%d):\n\n";
     public static final String HELP_MSG = """
             📚 Справка по командам:
             
             /start - Начальное приветствие
             /help - Эта справка
-            /files - Показать загруженные файлы
-            /clear - Очистить файлы
-            /test - Проверить работу бота
             
             Как использовать:
             1. Экспортируйте историю чата из Telegram (Settings → Advanced → Export chat history)
@@ -82,10 +62,7 @@ public final class Constants {
             • Максимум 10 файлов за раз
             • Форматы: HTML, JSON
             """;
-    public static final String NO_FILES_FOR_CLEAN_MSG = "📭 Нет файлов для очистки.";
-    public static final String DELETED_FILES_MSG = "🗑️ Удалено %d файлов.\nТеперь можно загружать новые файлы.";
     public static final String REQUEST_MSG = "Отправьте мне файлы экспорта чата (HTML/JSON) или используйте команды:\n/start - начать\n/help - помощь";
-    public static final String LAST_FILES_MSG = "\n👆 Можно отправить ещё %d файлов";
     public static final String PROCESS_BEGIN="🧠 Обработка началась...";
     public static final String PROCESS_COMPLETE="✅ Запрос обработан!!!";
 }
